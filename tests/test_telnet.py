@@ -75,8 +75,8 @@ class ReadTestCase(unittest.TestCase):
         with patch('tn3270.telnet.select') as select_patch:
             select_patch.return_value = [[self.telnet.socket]]
 
-            self.assertEqual(bytes.fromhex('01 02 03'), self.telnet.read())
-            self.assertEqual(bytes.fromhex('04 05 06'), self.telnet.read())
+            self.assertEqual(self.telnet.read(), bytes.fromhex('01 02 03'))
+            self.assertEqual(self.telnet.read(), bytes.fromhex('04 05 06'))
 
     def test_single_record_spans_multiple_recv(self):
         # Arrange
@@ -86,7 +86,7 @@ class ReadTestCase(unittest.TestCase):
         with patch('tn3270.telnet.select') as select_patch:
             select_patch.return_value = [[self.telnet.socket]]
 
-            self.assertEqual(bytes.fromhex('01 02 03 04 05 06'), self.telnet.read())
+            self.assertEqual(self.telnet.read(), bytes.fromhex('01 02 03 04 05 06'))
 
     def test_timeout(self):
         # Arrange
@@ -100,10 +100,10 @@ class ReadTestCase(unittest.TestCase):
 
                 self.telnet.read(timeout=5)
 
-                self.assertEqual(2, select_patch.call_count)
+                self.assertEqual(select_patch.call_count, 2)
 
-                self.assertEqual(5, select_patch.mock_calls[0][1][3])
-                self.assertEqual(3, select_patch.mock_calls[1][1][3])
+                self.assertEqual(select_patch.mock_calls[0][1][3], 5)
+                self.assertEqual(select_patch.mock_calls[1][1][3], 3)
 
     def test_recv_eof(self):
         # Arrange

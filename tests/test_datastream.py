@@ -129,7 +129,7 @@ class ParseOutboundMessageTestCase(unittest.TestCase):
         self.assertIsInstance(wcc, WCC)
         self.assertEqual(wcc.value, 0xc3)
 
-        self.assertEqual([Order.SBA, Order.SF, None], [order[0] for order in orders])
+        self.assertEqual([order[0] for order in orders], [Order.SBA, Order.SF, None])
 
     def test_sna_write(self):
         # Act
@@ -141,16 +141,16 @@ class ParseOutboundMessageTestCase(unittest.TestCase):
         self.assertIsInstance(wcc, WCC)
         self.assertEqual(wcc.value, 0xc3)
 
-        self.assertEqual([Order.SBA, Order.SF, None], [order[0] for order in orders])
+        self.assertEqual([order[0] for order in orders], [Order.SBA, Order.SF, None])
 
     def test_read_buffer(self):
-        self.assertEqual((Command.RB,), parse_outbound_message(bytes.fromhex('02')))
+        self.assertEqual(parse_outbound_message(bytes.fromhex('02')), (Command.RB,))
 
     def test_sna_read_buffer(self):
-        self.assertEqual((Command.RB,), parse_outbound_message(bytes.fromhex('f2')))
+        self.assertEqual(parse_outbound_message(bytes.fromhex('f2')), (Command.RB,))
 
     def test_nop(self):
-        self.assertEqual((Command.NOP,), parse_outbound_message(bytes.fromhex('03')))
+        self.assertEqual(parse_outbound_message(bytes.fromhex('03')), (Command.NOP,))
 
     def test_erase_write(self):
         # Act
@@ -162,7 +162,7 @@ class ParseOutboundMessageTestCase(unittest.TestCase):
         self.assertIsInstance(wcc, WCC)
         self.assertEqual(wcc.value, 0xc3)
 
-        self.assertEqual([Order.SBA, Order.SF, None], [order[0] for order in orders])
+        self.assertEqual([order[0] for order in orders], [Order.SBA, Order.SF, None])
 
     def test_sna_erase_write(self):
         # Act
@@ -174,13 +174,13 @@ class ParseOutboundMessageTestCase(unittest.TestCase):
         self.assertIsInstance(wcc, WCC)
         self.assertEqual(wcc.value, 0xc3)
 
-        self.assertEqual([Order.SBA, Order.SF, None], [order[0] for order in orders])
+        self.assertEqual([order[0] for order in orders], [Order.SBA, Order.SF, None])
 
     def test_read_modified(self):
-        self.assertEqual((Command.RM,), parse_outbound_message(bytes.fromhex('06')))
+        self.assertEqual(parse_outbound_message(bytes.fromhex('06')), (Command.RM,))
 
     def test_sna_read_modified(self):
-        self.assertEqual((Command.RM,), parse_outbound_message(bytes.fromhex('f6')))
+        self.assertEqual(parse_outbound_message(bytes.fromhex('f6')), (Command.RM,))
 
     def test_erase_write_alternate(self):
         with self.assertRaises(NotImplementedError):
@@ -191,16 +191,16 @@ class ParseOutboundMessageTestCase(unittest.TestCase):
             parse_outbound_message(bytes.fromhex('7e'))
 
     def test_read_modified_all(self):
-        self.assertEqual((Command.RMA,), parse_outbound_message(bytes.fromhex('0e')))
+        self.assertEqual(parse_outbound_message(bytes.fromhex('0e')), (Command.RMA,))
 
     def test_sna_read_modified_all(self):
-        self.assertEqual((Command.RMA,), parse_outbound_message(bytes.fromhex('63')))
+        self.assertEqual(parse_outbound_message(bytes.fromhex('63')), (Command.RMA,))
 
     def test_erase_all_unprotected(self):
-        self.assertEqual((Command.EAU,), parse_outbound_message(bytes.fromhex('0f')))
+        self.assertEqual(parse_outbound_message(bytes.fromhex('0f')), (Command.EAU,))
 
     def test_sna_all_unprotected(self):
-        self.assertEqual((Command.EAU,), parse_outbound_message(bytes.fromhex('6f')))
+        self.assertEqual(parse_outbound_message(bytes.fromhex('6f')), (Command.EAU,))
 
     def test_write_structured_field(self):
         with self.assertRaises(NotImplementedError):
@@ -220,21 +220,21 @@ class FormatInboundMessageTestCase(unittest.TestCase):
         bytes_ = format_inbound_message(AID.ENTER, 800, [(10, bytes.fromhex('00 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4 00'))])
 
         # Assert
-        self.assertEqual(bytes.fromhex('7d 03 20 11 00 0a c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'), bytes_)
+        self.assertEqual(bytes_, bytes.fromhex('7d 03 20 11 00 0a c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'))
 
     def test_clear(self):
         # Act
         bytes_ = format_inbound_message(AID.CLEAR, 800, [(10, bytes.fromhex('00 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4 00'))])
 
         # Assert
-        self.assertEqual(bytes.fromhex('6d'), bytes_)
+        self.assertEqual(bytes_, bytes.fromhex('6d'))
 
     def test_clear_with_all(self):
         # Act
         bytes_ = format_inbound_message(AID.CLEAR, 800, [(10, bytes.fromhex('00 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4 00'))], all_=True)
 
         # Assert
-        self.assertEqual(bytes.fromhex('6d 03 20 11 00 0a c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'), bytes_)
+        self.assertEqual(bytes_, bytes.fromhex('6d 03 20 11 00 0a c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'))
 
     # TODO: Separate strip nulls test?
 
@@ -256,20 +256,20 @@ class ParseOrdersTestCase(unittest.TestCase):
         self.assertEqual(orders[2], (None, bytes.fromhex('c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4')))
 
     def test_program_tab(self):
-        self.assertEqual([(Order.PT, None)], list(parse_orders(bytes.fromhex('05'))))
+        self.assertEqual(list(parse_orders(bytes.fromhex('05'))), [(Order.PT, None)])
 
     def test_graphic_escape(self):
         with self.assertRaises(NotImplementedError):
             list(parse_orders(bytes.fromhex('08')))
     
     def test_set_buffer_address(self):
-        self.assertEqual([(Order.SBA, [752])], list(parse_orders(bytes.fromhex('11 4b f0'))))
+        self.assertEqual(list(parse_orders(bytes.fromhex('11 4b f0'))), [(Order.SBA, [752])])
 
     def test_erase_unprotected_to_address(self):
-        self.assertEqual([(Order.EUA, [752])], list(parse_orders(bytes.fromhex('12 4b f0'))))
+        self.assertEqual(list(parse_orders(bytes.fromhex('12 4b f0'))), [(Order.EUA, [752])])
 
     def test_insert_cursor(self):
-        self.assertEqual([(Order.IC, None)], list(parse_orders(bytes.fromhex('13'))))
+        self.assertEqual(list(parse_orders(bytes.fromhex('13'))), [(Order.IC, None)])
 
     def test_start_field(self):
         # Act
@@ -294,7 +294,7 @@ class ParseOrdersTestCase(unittest.TestCase):
             list(parse_orders(bytes.fromhex('2c')))
 
     def test_repeat_to_address(self):
-        self.assertEqual([(Order.RA, [752, 0xc1])], list(parse_orders(bytes.fromhex('3c 4b f0 c1'))))
+        self.assertEqual(list(parse_orders(bytes.fromhex('3c 4b f0 c1'))), [(Order.RA, [752, 0xc1])])
 
 class ParseAddressTestCase(unittest.TestCase):
     def test_12_bit_address_with_01_prefix(self):
