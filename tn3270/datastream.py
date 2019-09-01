@@ -224,10 +224,10 @@ def parse_orders(bytes_):
         else:
             if byte == 0x00 or (byte >= 0x40 and byte <= 0xfe):
                 data.append(byte)
-
-                index += 1
             else:
                 logger.warning(f'Value 0x{byte:02x} out of range')
+
+            index += 1
 
     if data:
         yield (None, data)
