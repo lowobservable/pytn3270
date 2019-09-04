@@ -1,26 +1,37 @@
+"""
+tn3270.emulator
+~~~~~~~~~~~~~~~
+"""
+
 from itertools import chain
 import logging
 
 from .datastream import Command, Order, parse_outbound_message, format_inbound_message
 
 class Cell:
-    pass
+    """A display cell."""
 
 class AttributeCell(Cell):
+    """A attribute display cell."""
+
     def __init__(self, attribute):
         self.attribute = attribute
 
 class CharacterCell(Cell):
+    """A character display cell."""
+
     def __init__(self, byte):
         self.byte = byte
 
 class OperatorError(Exception):
-    pass
+    """Operator error."""
 
 class ProtectedCellOperatorError(OperatorError):
-    pass
+    """Protected cell error."""
 
 class Emulator:
+    """TN3270 emulator."""
+
     def __init__(self, stream, rows, columns):
         self.logger = logging.getLogger(__name__)
 
@@ -35,6 +46,7 @@ class Emulator:
         self.keyboard_locked = True
 
     def update(self, **kwargs):
+        """Read a outbound message and execute command."""
         bytes_ = self.stream.read(**kwargs)
 
         if bytes_ is None:
@@ -73,6 +85,7 @@ class Emulator:
         return True
 
     def aid(self, aid):
+        """AID key."""
         self.keyboard_locked = True
 
         bytes_ = self._read_modified(aid)
@@ -84,6 +97,7 @@ class Emulator:
         self.stream.write(bytes_)
 
     def tab(self, direction=1):
+        """Tab or backtab key."""
         address = self.cursor_address
 
         if direction < 0:
@@ -106,6 +120,7 @@ class Emulator:
             self.cursor_address = self._wrap_address(address + 1)
 
     def home(self):
+        """Home key."""
         addresses = self._get_addresses(0, (self.rows * self.columns) - 1)
 
         address = next((address for address in addresses
@@ -116,18 +131,23 @@ class Emulator:
             self.cursor_address = self._wrap_address(address + 1)
 
     def cursor_up(self):
+        """Cursor up key."""
         self.cursor_address = self._wrap_address(self.cursor_address - self.columns)
 
     def cursor_down(self):
+        """Cursor down key."""
         self.cursor_address = self._wrap_address(self.cursor_address + self.columns)
 
     def cursor_left(self):
+        """Cursor left key."""
         self.cursor_address = self._wrap_address(self.cursor_address - 1)
 
     def cursor_right(self):
+        """Cursor right key."""
         self.cursor_address = self._wrap_address(self.cursor_address + 1)
 
     def input(self, byte):
+        """Single character input."""
         if isinstance(self.cells[self.cursor_address], AttributeCell):
             raise ProtectedCellOperatorError
 
@@ -161,6 +181,7 @@ class Emulator:
                 self.cursor_address = self._wrap_address(address + 1)
 
     def backspace(self):
+        """Backspace key."""
         if isinstance(self.cells[self.cursor_address], AttributeCell):
             raise ProtectedCellOperatorError
 
@@ -182,10 +203,11 @@ class Emulator:
         self.cursor_address = self._wrap_address(self.cursor_address - 1)
 
     def delete(self):
+        """Delete key."""
         if isinstance(self.cells[self.cursor_address], AttributeCell):
             raise ProtectedCellOperatorError
 
-        (start_address, end_address, attribute) = self.get_field(self.cursor_address)
+        (_, end_address, attribute) = self.get_field(self.cursor_address)
 
         addresses = self._get_addresses(self.cursor_address, end_address)
 
@@ -197,11 +219,13 @@ class Emulator:
         attribute.modified = True
 
     def get_bytes(self, start_address, end_address):
+        """Get character cell bytes."""
         addresses = self._get_addresses(start_address, end_address)
 
         return bytes([self.cells[address].byte if isinstance(self.cells[address], CharacterCell) else 0x00 for address in addresses])
 
     def get_field(self, address):
+        """Get the unprotected field containing the address."""
         (attribute, start_attribute_address) = self.find_attribute(address)
 
         if attribute is None or attribute.protected:
@@ -224,6 +248,7 @@ class Emulator:
         return (start_address, end_address, attribute)
 
     def get_fields(self):
+        """Get all unprotected fields."""
         fields = []
 
         for address in range(0, self.rows * self.columns):
@@ -237,6 +262,7 @@ class Emulator:
         return fields
 
     def find_attribute(self, address):
+        """Find the applicable attribute for the address."""
         for address in self._get_addresses(address, self._wrap_address(address + 1),
                                            direction=-1):
             cell = self.cells[address]
