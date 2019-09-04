@@ -599,7 +599,7 @@ class BackspaceTestCase(unittest.TestCase):
         self.assertFalse(self.emulator.cells[659].attribute.modified)
         self.assertEqual(self.emulator.cells[660].byte, 0xe7)
 
-    def test_middle_field_character(self):
+    def test_from_middle_to_start(self):
         # Arrange
         address = 660
 
@@ -621,7 +621,7 @@ class BackspaceTestCase(unittest.TestCase):
         self.assertTrue(self.emulator.cells[659].attribute.modified)
         self.assertEqual(self.emulator.get_bytes(660, 669), bytes.fromhex('c6c7c8c9d10000000000'))
 
-    def test_last_field_character(self):
+    def test_from_end_to_start(self):
         # Arrange
         address = 660
 
@@ -642,3 +642,73 @@ class BackspaceTestCase(unittest.TestCase):
         self.assertEqual(self.emulator.cursor_address, 660)
         self.assertTrue(self.emulator.cells[659].attribute.modified)
         self.assertEqual(self.emulator.get_bytes(660, 669), bytes.fromhex('d1000000000000000000'))
+
+class DeleteTestCase(unittest.TestCase):
+    def setUp(self):
+        self.stream = Mock()
+
+        self.emulator = Emulator(self.stream, 24, 80)
+
+        self.stream.read = Mock(return_value=SCREEN1)
+
+        self.emulator.update()
+
+    def test_attribute_cell(self):
+        # Arrange
+        self.emulator.cursor_address = 499
+
+        # Act and assert
+        with self.assertRaises(ProtectedCellOperatorError):
+            self.emulator.delete()
+
+    def test_protected_cell(self):
+        # Arrange
+        self.emulator.cursor_address = 420
+
+        # Act and assert
+        with self.assertRaises(ProtectedCellOperatorError):
+            self.emulator.delete()
+
+    def test_from_middle_to_end(self):
+        # Arrange
+        address = 660
+
+        for character in 'ABCDEFGHIJ'.encode('cp500'):
+            self.emulator.cells[address].byte = character
+
+            address += 1
+
+        self.emulator.cursor_address = 665
+
+        self.assertFalse(self.emulator.cells[659].attribute.modified)
+
+        # Act
+        for _ in range(5):
+            self.emulator.delete()
+
+        # Assert
+        self.assertEqual(self.emulator.cursor_address, 665)
+        self.assertTrue(self.emulator.cells[659].attribute.modified)
+        self.assertEqual(self.emulator.get_bytes(660, 669), bytes.fromhex('c1c2c3c4c50000000000'))
+
+    def test_from_start_to_end(self):
+        # Arrange
+        address = 660
+
+        for character in 'ABCDEFGHIJ'.encode('cp500'):
+            self.emulator.cells[address].byte = character
+
+            address += 1
+
+        self.emulator.cursor_address = 660
+
+        self.assertFalse(self.emulator.cells[659].attribute.modified)
+
+        # Act
+        for _ in range(10):
+            self.emulator.delete()
+
+        # Assert
+        self.assertEqual(self.emulator.cursor_address, 660)
+        self.assertTrue(self.emulator.cells[659].attribute.modified)
+        self.assertEqual(self.emulator.get_bytes(660, 669), bytes.fromhex('00000000000000000000'))
