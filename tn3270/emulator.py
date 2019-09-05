@@ -98,26 +98,27 @@ class Emulator:
 
     def tab(self, direction=1):
         """Tab or backtab key."""
-        address = self.cursor_address
-
-        if direction < 0:
-            if address > 0 and isinstance(self.cells[address - 1], AttributeCell):
-                address -= 1
-
-            start_address = self._wrap_address(address - 1)
-            end_address = self._wrap_address(address)
-        else:
-            start_address = self._wrap_address(address)
-            end_address = self._wrap_address(address - 1)
-
-        addresses = self._get_addresses(start_address, end_address, direction)
-
-        address = next((address for address in addresses
-                        if isinstance(self.cells[address], AttributeCell)
-                        and not self.cells[address].attribute.protected), None)
+        address = self._calculate_tab_address(self.cursor_address, direction)
 
         if address is not None:
-            self.cursor_address = self._wrap_address(address + 1)
+            self.cursor_address = address
+
+    def newline(self):
+        """Move to the next line or the subsequent unprotected field."""
+        current_row = self.cursor_address // self.columns
+
+        address = self._wrap_address((current_row + 1) * self.columns)
+
+        (attribute, attribute_address) = self.find_attribute(address)
+
+        if attribute is not None and not attribute.protected and attribute_address != address:
+            self.cursor_address = address
+            return
+
+        address = self._calculate_tab_address(address, direction=1)
+
+        if address is not None:
+            self.cursor_address = address
 
     def home(self):
         """Home key."""
@@ -375,6 +376,28 @@ class Emulator:
             return address % (self.rows * self.columns)
 
         return address
+
+    def _calculate_tab_address(self, address, direction):
+        if direction < 0:
+            if address > 0 and isinstance(self.cells[address - 1], AttributeCell):
+                address -= 1
+
+            start_address = self._wrap_address(address - 1)
+            end_address = self._wrap_address(address)
+        else:
+            start_address = self._wrap_address(address)
+            end_address = self._wrap_address(address - 1)
+
+        addresses = self._get_addresses(start_address, end_address, direction)
+
+        address = next((address for address in addresses
+                        if isinstance(self.cells[address], AttributeCell)
+                        and not self.cells[address].attribute.protected), None)
+
+        if address is None:
+            return None
+
+        return self._wrap_address(address + 1)
 
     def _shift_left(self, start_address, end_address):
         addresses = self._get_addresses(start_address, end_address)

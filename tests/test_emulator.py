@@ -21,6 +21,8 @@ SCREEN1 = bytes.fromhex(('f5c3110000e2d6d4c5e3c8c9d5c740c9d540e3c8c540c6c9d9e2e3
 
 SCREEN2 = bytes.fromhex(('05f5c11100151d304c606011076760606e1d00'))
 
+SCREEN3 = bytes.fromhex('f5c31100001d001107671d3011000113')
+
 class UpdateTestCase(unittest.TestCase):
     def setUp(self):
         self.stream = Mock()
@@ -330,6 +332,52 @@ class TabTestCase(unittest.TestCase):
 
         # Assert
         self.assertEqual(self.emulator.cursor_address, 900)
+
+class NewlineTestCase(unittest.TestCase):
+    def setUp(self):
+        self.stream = Mock()
+
+        self.stream.read = Mock(return_value=SCREEN3)
+
+        self.emulator = Emulator(self.stream, 24, 80)
+
+        self.emulator.update()
+
+        self.emulator.cursor_address = 0
+
+    def test_blank_screen(self):
+        # Arrange
+        self.emulator = Emulator(None, 24, 80)
+
+        self.assertEqual(self.emulator.cursor_address, 0)
+
+        # Act
+        self.emulator.newline()
+
+        # Assert
+        self.assertEqual(self.emulator.cursor_address, 0)
+
+    def test_next_line(self):
+        for address in [0, 1, 20]:
+            with self.subTest(address=address):
+                # Arrange
+                self.emulator.cursor_address = address
+
+                # Act
+                self.emulator.newline()
+
+                # Assert
+                self.assertEqual(self.emulator.cursor_address, 80)
+
+    def test_wrap(self):
+        # Arrange
+        self.emulator.cursor_address = 1900
+
+        # Act
+        self.emulator.newline()
+
+        # Assert
+        self.assertEqual(self.emulator.cursor_address, 1)
 
 class HomeTestCase(unittest.TestCase):
     def setUp(self):
