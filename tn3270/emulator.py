@@ -190,13 +190,7 @@ class Emulator:
         if self.cursor_address == start_address:
             return
 
-        addresses = self._get_addresses(self._wrap_address(self.cursor_address - 1),
-                                        end_address)
-
-        for (left_address, address) in _sliding_pairs(addresses):
-            self.cells[left_address].byte = self.cells[address].byte
-
-        self.cells[end_address].byte = 0x00
+        self._shift_left(self._wrap_address(self.cursor_address - 1), end_address)
 
         attribute.modified = True
 
@@ -209,12 +203,7 @@ class Emulator:
 
         (_, end_address, attribute) = self.get_field(self.cursor_address)
 
-        addresses = self._get_addresses(self.cursor_address, end_address)
-
-        for (address, right_address) in _sliding_pairs(addresses):
-            self.cells[address].byte = self.cells[right_address].byte
-
-        self.cells[end_address].byte = 0x00
+        self._shift_left(self.cursor_address, end_address)
 
         attribute.modified = True
 
@@ -387,5 +376,10 @@ class Emulator:
 
         return address
 
-def _sliding_pairs(iterable):
-    return zip(iterable, iterable[1:])
+    def _shift_left(self, start_address, end_address):
+        addresses = self._get_addresses(start_address, end_address)
+
+        for (left_address, right_address) in zip(addresses, addresses[1:]):
+            self.cells[left_address].byte = self.cells[right_address].byte
+
+        self.cells[end_address].byte = 0x00
