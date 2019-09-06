@@ -21,7 +21,9 @@ SCREEN1 = bytes.fromhex(('f5c3110000e2d6d4c5e3c8c9d5c740c9d540e3c8c540c6c9d9e2e3
 
 SCREEN2 = bytes.fromhex('f5c11100151d304c606011076760606e1d00')
 
-SCREEN3 = bytes.fromhex('f5c31100001d001107671d3011000113')
+SCREEN3 = bytes.fromhex(('f5c311000060606e1d001101a41d304c60601101b860606e1d001101c21d304c'
+                         '60601101f460606e1d001101fe1d304c606011020860606e1d001102121d304c'
+                         '606011000413'))
 
 class UpdateTestCase(unittest.TestCase):
     def setUp(self):
@@ -369,15 +371,25 @@ class NewlineTestCase(unittest.TestCase):
                 # Assert
                 self.assertEqual(self.emulator.cursor_address, 80)
 
-    def test_wrap(self):
+    def test_first_field_on_next_line(self):
         # Arrange
-        self.emulator.cursor_address = 1900
+        self.emulator.cursor_address = 400
 
         # Act
         self.emulator.newline()
 
         # Assert
-        self.assertEqual(self.emulator.cursor_address, 1)
+        self.assertEqual(self.emulator.cursor_address, 504)
+
+    def test_wrap(self):
+        # Arrange
+        self.emulator.cursor_address = 504
+
+        # Act
+        self.emulator.newline()
+
+        # Assert
+        self.assertEqual(self.emulator.cursor_address, 4)
 
 class HomeTestCase(unittest.TestCase):
     def setUp(self):
