@@ -102,7 +102,44 @@ class UpdateTestCase(unittest.TestCase):
         # Assert
         self.stream.write.assert_called_with(bytes.fromhex('6d020d1101f4c1c2c3c4c5110208c6c7c8c9d11102e4e7e7e7e7e71102f8e7e7e7e7e711030ce7e7e7e7e7'))
 
-    # TODO: test_erase_all_unprotected
+    def test_erase_all_unprotected(self):
+        # Arrange
+        self.stream.read = Mock(side_effect=[SCREEN1, bytes.fromhex('0f')])
+
+        self.emulator.update()
+
+        self.emulator.cursor_address = 505
+
+        for character in 'ABCDEFGHIJ'.encode('cp500'):
+            self.emulator.input(character)
+
+        self.emulator.current_aid = AID.ENTER
+        self.emulator.keyboard_locked = True
+
+        self.assertEqual(self.emulator.cursor_address, 525)
+
+        fields = self.emulator.get_fields()
+
+        self.assertTrue(fields[0][2].modified)
+        self.assertEqual(self.emulator.get_bytes(fields[0][0], fields[0][1]), bytes.fromhex('0000000000c1c2c3c4c5'))
+
+        self.assertTrue(fields[1][2].modified)
+        self.assertEqual(self.emulator.get_bytes(fields[1][0], fields[1][1]), bytes.fromhex('c6c7c8c9d10000000000'))
+
+        # Act
+        self.emulator.update()
+
+        # Assert
+        fields = self.emulator.get_fields()
+
+        self.assertFalse(fields[0][2].modified)
+        self.assertEqual(self.emulator.get_bytes(fields[0][0], fields[0][1]), bytes.fromhex('00000000000000000000'))
+
+        self.assertFalse(fields[1][2].modified)
+        self.assertEqual(self.emulator.get_bytes(fields[1][0], fields[1][1]), bytes.fromhex('00000000000000000000'))
+
+        self.assertEqual(self.emulator.current_aid, AID.NONE)
+        self.assertFalse(self.emulator.keyboard_locked)
 
     # TODO: test_write_structured_field
 

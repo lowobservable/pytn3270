@@ -274,6 +274,7 @@ class Emulator:
             attribute.modified = False
 
         self.current_aid = AID.NONE
+        self.keyboard_locked = False
 
         # TODO: Repositions the cursor to the first character location, after the field
         # attribute, in the first unprotected field of the partition's character buffer.
