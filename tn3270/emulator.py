@@ -6,7 +6,7 @@ tn3270.emulator
 from itertools import chain
 import logging
 
-from .datastream import Command, Order, parse_outbound_message, format_inbound_message
+from .datastream import Command, Order, AID, parse_outbound_message, format_inbound_message
 
 class Cell:
     """A display cell."""
@@ -43,6 +43,7 @@ class Emulator:
         self.cells = [CharacterCell(0x00) for index in range(self.rows * self.columns)]
         self.address = 0
         self.cursor_address = 0
+        self.current_aid = AID.NONE
         self.keyboard_locked = True
 
     def update(self, **kwargs):
@@ -86,12 +87,12 @@ class Emulator:
 
     def aid(self, aid):
         """AID key."""
+        self.current_aid = aid
         self.keyboard_locked = True
 
-        bytes_ = self._read_modified(aid)
+        bytes_ = self._read_modified()
 
         if self.logger.isEnabledFor(logging.DEBUG):
-            self.logger.debug(aid)
             self.logger.debug(f'\tData = {bytes_}')
 
         self.stream.write(bytes_)
@@ -277,8 +278,12 @@ class Emulator:
             for address in range(start_address, end_address + 1):
                 self.cells[address] = CharacterCell(0x00)
 
-            # TODO: Is this is correct?
             attribute.modified = False
+
+        self.current_aid = AID.NONE
+
+        # TODO: Repositions the cursor to the first character location, after the field
+        # attribute, in the first unprotected field of the partition's character buffer.
 
     def _write(self, wcc, orders):
         if self.logger.isEnabledFor(logging.DEBUG):
@@ -324,7 +329,7 @@ class Emulator:
             elif order == Order.RA:
                 (repeat_address, byte) = data
 
-                # off by one?
+                # TODO: off by one?
                 if repeat_address > self.address:
                     addresses = range(self.address, repeat_address)
                 elif repeat_address < self.address:
@@ -344,18 +349,21 @@ class Emulator:
                     self.address += 1
 
         if wcc.unlock_keyboard:
+            self.current_aid = AID.NONE
             self.keyboard_locked = False
 
-    def _read_modified(self, aid):
+    def _read_modified(self, all_=False):
         modified_field_ranges = [(start_address, end_address) for (start_address, end_address, attribute) in self.get_fields() if attribute.modified]
 
         fields = [(start_address, self.get_bytes(start_address, end_address)) for (start_address, end_address) in modified_field_ranges]
 
         if self.logger.isEnabledFor(logging.DEBUG):
             self.logger.debug('Read Modified')
+            self.logger.debug(f'\tAID    = {self.current_aid}')
             self.logger.debug(f'\tFields = {fields}')
+            self.logger.debug(f'\tAll    = {all_}')
 
-        return format_inbound_message(aid, self.cursor_address, fields)
+        return format_inbound_message(self.current_aid, self.cursor_address, fields, all_)
 
     def _get_addresses(self, start_address, end_address, direction=1):
         if direction < 0:
