@@ -7,7 +7,7 @@ import context
 from tn3270.emulator import Emulator, AttributeCell, ProtectedCellOperatorError
 from tn3270.datastream import AID
 
-SCREEN1 = bytes.fromhex(('f5c3110000e2d6d4c5e3c8c9d5c740c9d540e3c8c540c6c9d9e2e340d9d6e611'
+SCREEN1 = bytes.fromhex(('05c3110000e2d6d4c5e3c8c9d5c740c9d540e3c8c540c6c9d9e2e340d9d6e611'
                          '00503c00a07e110154d5d6d9d4c1d3110168c9d5e3c5d5e2c511017cc8c9c4c4'
                          'c5d5110190d7d9d6e3c5c3e3c5c41101a31d60e7e7e7e7e7e7e7e7e7e71101b7'
                          '1de8e7e7e7e7e7e7e7e7e7e71101cb1d6ce7e7e7e7e7e7e7e7e7e71d601101e0'
@@ -19,9 +19,9 @@ SCREEN1 = bytes.fromhex(('f5c3110000e2d6d4c5e3c8c9d5c740c9d540e3c8c540c6c9d9e2e3
                          '02ee1df01102f71dc9e7e7e7e7e71103021df011030b1d4de7e7e7e7e7110316'
                          '1df0110370d5d640e2d2c9d71103831d4011038e1d601101f8130513'))
 
-SCREEN2 = bytes.fromhex('f5c11100151d304c606011076760606e1d00')
+SCREEN2 = bytes.fromhex('05c11100151d304c606011076760606e1d00')
 
-SCREEN3 = bytes.fromhex(('f5c311000060606e1d001101a41d304c60601101b860606e1d001101c21d304c'
+SCREEN3 = bytes.fromhex(('05c311000060606e1d001101a41d304c60601101b860606e1d001101c21d304c'
                          '60601101f460606e1d001101fe1d304c606011020860606e1d001102121d304c'
                          '606011000413'))
 
@@ -50,100 +50,14 @@ class UpdateTestCase(unittest.TestCase):
 
     # TODO: test_read_buffer
 
-    # TODO: test_nop
-
-    # TODO: test_erase_write
-
-    def test_read_modified(self):
+    def test_nop(self):
         # Arrange
-        self.stream.read = Mock(side_effect=[SCREEN1, bytes.fromhex('06')])
-
-        self.emulator.update()
-
-        self.emulator.cursor_address = 505
-
-        for character in 'ABCDEFGHIJ'.encode('cp500'):
-            self.emulator.input(character)
-
-        self.assertEqual(self.emulator.cursor_address, 525)
-
-        self.emulator.aid(AID.ENTER)
-
-        self.stream.write.reset_mock()
+        self.stream.read = Mock(return_value=bytes.fromhex('03'))
 
         # Act
         self.emulator.update()
 
-        # Assert
-        self.stream.write.assert_called_with(bytes.fromhex('7d020d1101f4c1c2c3c4c5110208c6c7c8c9d11102e4e7e7e7e7e71102f8e7e7e7e7e711030ce7e7e7e7e7'))
-
-    # TODO: test_erase_write_alternate
-
-    def test_read_modified_all(self):
-        # Arrange
-        self.stream.read = Mock(side_effect=[SCREEN1, bytes.fromhex('0e')])
-
-        self.emulator.update()
-
-        self.emulator.cursor_address = 505
-
-        for character in 'ABCDEFGHIJ'.encode('cp500'):
-            self.emulator.input(character)
-
-        self.assertEqual(self.emulator.cursor_address, 525)
-
-        self.emulator.aid(AID.CLEAR)
-
-        self.stream.write.reset_mock()
-
-        # Act
-        self.emulator.update()
-
-        # Assert
-        self.stream.write.assert_called_with(bytes.fromhex('6d020d1101f4c1c2c3c4c5110208c6c7c8c9d11102e4e7e7e7e7e71102f8e7e7e7e7e711030ce7e7e7e7e7'))
-
-    def test_erase_all_unprotected(self):
-        # Arrange
-        self.stream.read = Mock(side_effect=[SCREEN1, bytes.fromhex('0f')])
-
-        self.emulator.update()
-
-        self.emulator.cursor_address = 505
-
-        for character in 'ABCDEFGHIJ'.encode('cp500'):
-            self.emulator.input(character)
-
-        self.emulator.current_aid = AID.ENTER
-        self.emulator.keyboard_locked = True
-
-        self.assertEqual(self.emulator.cursor_address, 525)
-
-        fields = self.emulator.get_fields()
-
-        self.assertTrue(fields[0][2].modified)
-        self.assertEqual(self.emulator.get_bytes(fields[0][0], fields[0][1]), bytes.fromhex('0000000000c1c2c3c4c5'))
-
-        self.assertTrue(fields[1][2].modified)
-        self.assertEqual(self.emulator.get_bytes(fields[1][0], fields[1][1]), bytes.fromhex('c6c7c8c9d10000000000'))
-
-        # Act
-        self.emulator.update()
-
-        # Assert
-        fields = self.emulator.get_fields()
-
-        self.assertFalse(fields[0][2].modified)
-        self.assertEqual(self.emulator.get_bytes(fields[0][0], fields[0][1]), bytes.fromhex('00000000000000000000'))
-
-        self.assertFalse(fields[1][2].modified)
-        self.assertEqual(self.emulator.get_bytes(fields[1][0], fields[1][1]), bytes.fromhex('00000000000000000000'))
-
-        self.assertEqual(self.emulator.current_aid, AID.NONE)
-        self.assertFalse(self.emulator.keyboard_locked)
-
-    # TODO: test_write_structured_field
-
-    def test_screen1(self):
+    def test_erase_write_screen1(self):
         # Arrange
         self.stream.read = Mock(return_value=SCREEN1)
 
@@ -241,7 +155,7 @@ class UpdateTestCase(unittest.TestCase):
         self.assertEqual(fields[12][0], 900)
         self.assertEqual(fields[12][1], 909)
 
-    def test_screen2(self):
+    def test_erase_write_screen2(self):
         # Arrange
         self.stream.read = Mock(return_value=SCREEN2)
 
@@ -260,6 +174,107 @@ class UpdateTestCase(unittest.TestCase):
         self.assertFalse(fields[0][2].intensified)
         self.assertFalse(fields[0][2].hidden)
         self.assertFalse(fields[0][2].modified)
+
+    def test_read_modified(self):
+        # Arrange
+        self.stream.read = Mock(side_effect=[SCREEN1, bytes.fromhex('06')])
+
+        self.emulator.update()
+
+        self.emulator.cursor_address = 505
+
+        for character in 'ABCDEFGHIJ'.encode('cp500'):
+            self.emulator.input(character)
+
+        self.assertEqual(self.emulator.cursor_address, 525)
+
+        self.emulator.aid(AID.ENTER)
+
+        self.stream.write.reset_mock()
+
+        # Act
+        self.emulator.update()
+
+        # Assert
+        self.stream.write.assert_called_with(bytes.fromhex('7d020d1101f4c1c2c3c4c5110208c6c7c8c9d11102e4e7e7e7e7e71102f8e7e7e7e7e711030ce7e7e7e7e7'))
+
+    def test_erase_write_alternate(self):
+        # Arrange
+        self.stream.read = Mock(return_value=bytes.fromhex('0d'))
+
+        # Act and assert
+        with self.assertRaises(NotImplementedError):
+            self.emulator.update()
+
+    def test_read_modified_all(self):
+        # Arrange
+        self.stream.read = Mock(side_effect=[SCREEN1, bytes.fromhex('0e')])
+
+        self.emulator.update()
+
+        self.emulator.cursor_address = 505
+
+        for character in 'ABCDEFGHIJ'.encode('cp500'):
+            self.emulator.input(character)
+
+        self.assertEqual(self.emulator.cursor_address, 525)
+
+        self.emulator.aid(AID.CLEAR)
+
+        self.stream.write.reset_mock()
+
+        # Act
+        self.emulator.update()
+
+        # Assert
+        self.stream.write.assert_called_with(bytes.fromhex('6d020d1101f4c1c2c3c4c5110208c6c7c8c9d11102e4e7e7e7e7e71102f8e7e7e7e7e711030ce7e7e7e7e7'))
+
+    def test_erase_all_unprotected(self):
+        # Arrange
+        self.stream.read = Mock(side_effect=[SCREEN1, bytes.fromhex('0f')])
+
+        self.emulator.update()
+
+        self.emulator.cursor_address = 505
+
+        for character in 'ABCDEFGHIJ'.encode('cp500'):
+            self.emulator.input(character)
+
+        self.emulator.current_aid = AID.ENTER
+        self.emulator.keyboard_locked = True
+
+        self.assertEqual(self.emulator.cursor_address, 525)
+
+        fields = self.emulator.get_fields()
+
+        self.assertTrue(fields[0][2].modified)
+        self.assertEqual(self.emulator.get_bytes(fields[0][0], fields[0][1]), bytes.fromhex('0000000000c1c2c3c4c5'))
+
+        self.assertTrue(fields[1][2].modified)
+        self.assertEqual(self.emulator.get_bytes(fields[1][0], fields[1][1]), bytes.fromhex('c6c7c8c9d10000000000'))
+
+        # Act
+        self.emulator.update()
+
+        # Assert
+        fields = self.emulator.get_fields()
+
+        self.assertFalse(fields[0][2].modified)
+        self.assertEqual(self.emulator.get_bytes(fields[0][0], fields[0][1]), bytes.fromhex('00000000000000000000'))
+
+        self.assertFalse(fields[1][2].modified)
+        self.assertEqual(self.emulator.get_bytes(fields[1][0], fields[1][1]), bytes.fromhex('00000000000000000000'))
+
+        self.assertEqual(self.emulator.current_aid, AID.NONE)
+        self.assertFalse(self.emulator.keyboard_locked)
+
+    def test_write_structured_field(self):
+        # Arrange
+        self.stream.read = Mock(return_value=bytes.fromhex('11'))
+
+        # Act and assert
+        with self.assertRaises(NotImplementedError):
+            self.emulator.update()
 
 class AidTestCase(unittest.TestCase):
     def setUp(self):
