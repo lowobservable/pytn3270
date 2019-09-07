@@ -161,17 +161,17 @@ def format_inbound_message(aid, cursor_address, fields, all_=False):
     """Format a message for the host."""
     bytes_ = bytearray([aid.value])
 
-    if all_ or aid not in SHORT_READ_AIDS:
-        bytes_ += format_address(cursor_address)
+    if aid in SHORT_READ_AIDS and not all_:
+        return bytes_
 
-        for (address, data) in fields:
-            bytes_.append(Order.SBA.value)
+    bytes_ += format_address(cursor_address)
 
-            bytes_ += format_address(address)
+    for (address, data) in fields:
+        bytes_.append(Order.SBA.value)
 
-            for byte in data:
-                if byte != 0x00:
-                    bytes_.append(byte)
+        bytes_ += format_address(address)
+
+        bytes_.extend([byte for byte in data if byte != 0x00])
 
     return bytes_
 
