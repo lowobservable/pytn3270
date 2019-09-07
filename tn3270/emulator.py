@@ -71,13 +71,11 @@ class Emulator:
             self._erase()
             self._write(*options)
         elif command == Command.RM:
-            # TODO
-            print('TODO: RM')
+            self._read_modified()
         elif command == Command.EWA:
             raise NotImplementedError('EWA command is not supported')
         elif command == Command.RMA:
-            # TODO
-            print('TODO: RMA')
+            self._read_modified(all_=True)
         elif command == Command.EAU:
             self._erase_all_unprotected()
         elif command == Command.WSF:
@@ -90,12 +88,7 @@ class Emulator:
         self.current_aid = aid
         self.keyboard_locked = True
 
-        bytes_ = self._read_modified()
-
-        if self.logger.isEnabledFor(logging.DEBUG):
-            self.logger.debug(f'\tData = {bytes_}')
-
-        self.stream.write(bytes_)
+        self._read_modified()
 
     def tab(self, direction=1):
         """Tab or backtab key."""
@@ -363,7 +356,12 @@ class Emulator:
             self.logger.debug(f'\tFields = {fields}')
             self.logger.debug(f'\tAll    = {all_}')
 
-        return format_inbound_message(self.current_aid, self.cursor_address, fields, all_)
+        bytes_ = format_inbound_message(self.current_aid, self.cursor_address, fields, all_)
+
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug(f'\tData   = {bytes_}')
+
+        self.stream.write(bytes_)
 
     def _get_addresses(self, start_address, end_address, direction=1):
         if direction < 0:

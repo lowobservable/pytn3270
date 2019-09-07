@@ -54,11 +54,53 @@ class UpdateTestCase(unittest.TestCase):
 
     # TODO: test_erase_write
 
-    # TODO: test_read_modified
+    def test_read_modified(self):
+        # Arrange
+        self.stream.read = Mock(side_effect=[SCREEN1, bytes.fromhex('06')])
+
+        self.emulator.update()
+
+        self.emulator.cursor_address = 505
+
+        for character in 'ABCDEFGHIJ'.encode('cp500'):
+            self.emulator.input(character)
+
+        self.assertEqual(self.emulator.cursor_address, 525)
+
+        self.emulator.aid(AID.ENTER)
+
+        self.stream.write.reset_mock()
+
+        # Act
+        self.emulator.update()
+
+        # Assert
+        self.stream.write.assert_called_with(bytes.fromhex('7d020d1101f4c1c2c3c4c5110208c6c7c8c9d11102e4e7e7e7e7e71102f8e7e7e7e7e711030ce7e7e7e7e7'))
 
     # TODO: test_erase_write_alternate
 
-    # TODO: test_read_modified_all
+    def test_read_modified_all(self):
+        # Arrange
+        self.stream.read = Mock(side_effect=[SCREEN1, bytes.fromhex('0e')])
+
+        self.emulator.update()
+
+        self.emulator.cursor_address = 505
+
+        for character in 'ABCDEFGHIJ'.encode('cp500'):
+            self.emulator.input(character)
+
+        self.assertEqual(self.emulator.cursor_address, 525)
+
+        self.emulator.aid(AID.CLEAR)
+
+        self.stream.write.reset_mock()
+
+        # Act
+        self.emulator.update()
+
+        # Assert
+        self.stream.write.assert_called_with(bytes.fromhex('6d020d1101f4c1c2c3c4c5110208c6c7c8c9d11102e4e7e7e7e7e71102f8e7e7e7e7e711030ce7e7e7e7e7'))
 
     # TODO: test_erase_all_unprotected
 
