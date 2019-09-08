@@ -157,14 +157,24 @@ def parse_outbound_message(bytes_):
 
     return (command,)
 
-def format_inbound_message(aid, cursor_address, fields, all_=False):
-    """Format a message for the host."""
-    bytes_ = bytearray([aid.value])
+def format_inbound_read_buffer_message(aid, cursor_address, orders):
+    """Format a read buffer message for the host."""
+    bytes_ = bytearray()
 
+    for (order, data) in orders:
+        if order == Order.SF:
+            bytes_.extend([Order.SF.value, data[0].value])
+        elif order is None:
+            bytes_ += data
+
+    return _format_inbound_message(aid, cursor_address, bytes_)
+
+def format_inbound_read_modified_message(aid, cursor_address, fields, all_=False):
+    """Format a read modified message for the host."""
     if aid in SHORT_READ_AIDS and not all_:
-        return bytes_
+        return bytearray([aid.value])
 
-    bytes_ += format_address(cursor_address)
+    bytes_ = bytearray()
 
     for (address, data) in fields:
         bytes_.append(Order.SBA.value)
@@ -173,7 +183,7 @@ def format_inbound_message(aid, cursor_address, fields, all_=False):
 
         bytes_.extend([byte for byte in data if byte != 0x00])
 
-    return bytes_
+    return _format_inbound_message(aid, cursor_address, bytes_)
 
 def parse_orders(bytes_):
     """Parse orders from the host."""
@@ -274,3 +284,11 @@ def format_address(address, size=14):
                       SIX_BIT_CHARACTER_MAP[address & 0x3f]])
 
     raise ValueError('Invalid size')
+
+def _format_inbound_message(aid, cursor_address, data_bytes):
+    message_bytes = bytearray([aid.value])
+
+    message_bytes += format_address(cursor_address)
+    message_bytes += data_bytes
+
+    return message_bytes

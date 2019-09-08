@@ -2,7 +2,7 @@ import unittest
 
 import context
 
-from tn3270.datastream import Command, Order, AID, WCC, Attribute, parse_outbound_message, format_inbound_message, parse_orders, parse_address, format_address
+from tn3270.datastream import Command, Order, AID, WCC, Attribute, parse_outbound_message, format_inbound_read_modified_message, parse_orders, parse_address, format_address
 
 class WCCTestCase(unittest.TestCase):
     def test_reset(self):
@@ -214,24 +214,24 @@ class ParseOutboundMessageTestCase(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Unrecognized command 0x99'):
             parse_outbound_message(bytes.fromhex('99'))
 
-class FormatInboundMessageTestCase(unittest.TestCase):
+class FormatInboundReadModifiedMessageTestCase(unittest.TestCase):
     def test_enter(self):
         # Act
-        bytes_ = format_inbound_message(AID.ENTER, 800, [(10, bytes.fromhex('00 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4 00'))])
+        bytes_ = format_inbound_read_modified_message(AID.ENTER, 800, [(10, bytes.fromhex('00 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4 00'))])
 
         # Assert
         self.assertEqual(bytes_, bytes.fromhex('7d 03 20 11 00 0a c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'))
 
     def test_clear(self):
         # Act
-        bytes_ = format_inbound_message(AID.CLEAR, 800, [(10, bytes.fromhex('00 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4 00'))])
+        bytes_ = format_inbound_read_modified_message(AID.CLEAR, 800, [(10, bytes.fromhex('00 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4 00'))])
 
         # Assert
         self.assertEqual(bytes_, bytes.fromhex('6d'))
 
     def test_clear_with_all(self):
         # Act
-        bytes_ = format_inbound_message(AID.CLEAR, 800, [(10, bytes.fromhex('00 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4 00'))], all_=True)
+        bytes_ = format_inbound_read_modified_message(AID.CLEAR, 800, [(10, bytes.fromhex('00 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4 00'))], all_=True)
 
         # Assert
         self.assertEqual(bytes_, bytes.fromhex('6d 03 20 11 00 0a c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'))

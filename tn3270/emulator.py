@@ -6,7 +6,7 @@ tn3270.emulator
 from itertools import chain
 import logging
 
-from .datastream import Command, Order, AID, parse_outbound_message, format_inbound_message
+from .datastream import Command, Order, AID, parse_outbound_message, format_inbound_read_buffer_message, format_inbound_read_modified_message
 
 class Cell:
     """A display cell."""
@@ -63,8 +63,7 @@ class Emulator:
         if command == Command.W:
             self._write(*options)
         elif command == Command.RB:
-            # TODO
-            print('TODO: RB')
+            self._read_buffer()
         elif command == Command.NOP:
             pass
         elif command == Command.EW:
@@ -346,6 +345,36 @@ class Emulator:
             self.current_aid = AID.NONE
             self.keyboard_locked = False
 
+    def _read_buffer(self):
+        orders = []
+
+        data = bytearray()
+
+        for cell in self.cells:
+            if isinstance(cell, AttributeCell):
+                if data:
+                    orders.append((None, data))
+
+                    data = bytearray()
+
+                orders.append((Order.SF, [cell.attribute]))
+            elif isinstance(cell, CharacterCell):
+                data.append(cell.byte)
+
+        if data:
+            orders.append((None, data))
+
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug('Read Buffer')
+            self.logger.debug(f'\tAID    = {self.current_aid}')
+
+        bytes_ = format_inbound_read_buffer_message(self.current_aid, self.cursor_address,  orders)
+
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug(f'\tData   = {bytes_}')
+
+        self.stream.write(bytes_)
+
     def _read_modified(self, all_=False):
         modified_field_ranges = [(start_address, end_address) for (start_address, end_address, attribute) in self.get_fields() if attribute.modified]
 
@@ -357,7 +386,7 @@ class Emulator:
             self.logger.debug(f'\tFields = {fields}')
             self.logger.debug(f'\tAll    = {all_}')
 
-        bytes_ = format_inbound_message(self.current_aid, self.cursor_address, fields, all_)
+        bytes_ = format_inbound_read_modified_message(self.current_aid, self.cursor_address, fields, all_)
 
         if self.logger.isEnabledFor(logging.DEBUG):
             self.logger.debug(f'\tData   = {bytes_}')
