@@ -305,8 +305,23 @@ class Emulator:
             elif order == Order.SBA:
                 self.address = data[0]
             elif order == Order.EUA:
-                # TODO
-                print('TODO: EUA')
+                unprotected_addresses = set()
+
+                for (start_address, end_address, _) in self.get_fields():
+                    unprotected_addresses.update(range(start_address, end_address + 1))
+
+                stop_address = data[0]
+
+                if self.address == stop_address:
+                    addresses = range(0, self.rows * self.columns)
+                else:
+                    addresses = self._get_addresses(self.address,
+                                                    self._wrap_address(stop_address - 1))
+
+                for address in unprotected_addresses.intersection(addresses):
+                    self.cells[address] = CharacterCell(0x00)
+
+                self.address = stop_address
             elif order == Order.IC:
                 self.cursor_address = self.address
             elif order == Order.SF:
@@ -320,21 +335,18 @@ class Emulator:
             elif order == Order.MF:
                 raise NotImplementedError('MF order is not supported')
             elif order == Order.RA:
-                (repeat_address, byte) = data
+                (stop_address, byte) = data
 
-                # TODO: off by one?
-                if repeat_address > self.address:
-                    addresses = range(self.address, repeat_address)
-                elif repeat_address < self.address:
-                    addresses = chain(range(self.address, self.rows * self.columns),
-                                      range(0, repeat_address))
-                else:
+                if self.address == stop_address:
                     addresses = range(0, self.rows * self.columns)
+                else:
+                    addresses = self._get_addresses(self.address,
+                                                    self._wrap_address(stop_address - 1))
 
                 for address in addresses:
                     self.cells[address] = CharacterCell(byte)
 
-                self.address = repeat_address
+                self.address = stop_address
             elif order is None:
                 for byte in data:
                     self.cells[self.address] = CharacterCell(byte)
