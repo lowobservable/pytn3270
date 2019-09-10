@@ -6,7 +6,9 @@ tn3270.emulator
 from itertools import chain
 import logging
 
-from .datastream import Command, Order, AID, parse_outbound_message, format_inbound_read_buffer_message, format_inbound_read_modified_message
+from .datastream import Command, Order, AID, parse_outbound_message, \
+                        format_inbound_read_buffer_message, \
+                        format_inbound_read_modified_message
 
 class Cell:
     """A display cell."""
@@ -380,7 +382,7 @@ class Emulator:
             self.logger.debug('Read Buffer')
             self.logger.debug(f'\tAID    = {self.current_aid}')
 
-        bytes_ = format_inbound_read_buffer_message(self.current_aid, self.cursor_address,  orders)
+        bytes_ = format_inbound_read_buffer_message(self.current_aid, self.cursor_address, orders)
 
         if self.logger.isEnabledFor(logging.DEBUG):
             self.logger.debug(f'\tData   = {bytes_}')
