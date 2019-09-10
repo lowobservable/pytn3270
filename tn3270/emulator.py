@@ -299,9 +299,10 @@ class Emulator:
                     self.logger.debug(f'\t\tParameters = {data}')
 
             if order == Order.PT:
-                # TODO: It appears that PT only moves the buffer address not the cursor
-                # address so I cannot use tab().
-                print('TODO: PT')
+                # TODO: PT is more complex to implement that simply duplicating the
+                # behavior of tab() - how it behaves differs based on what command it
+                # follows.
+                raise NotImplementedError('PT order is not supported')
             elif order == Order.GE:
                 raise NotImplementedError('GE order is not supported')
             elif order == Order.SBA:

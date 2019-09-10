@@ -17,7 +17,7 @@ SCREEN1 = bytes.fromhex(('05c3110000e2d6d4c5e3c8c9d5c740c9d540e3c8c540c6c9d9e2e3
                          '1d40e7e7e7e7e711029e1df01102a71dc8e7e7e7e7e71102b21df01102bb1d4c'
                          'e7e7e7e7e71102c61df01102d0d4d6c4c9c6c9c5c41102e31dc1e7e7e7e7e711'
                          '02ee1df01102f71dc9e7e7e7e7e71103021df011030b1d4de7e7e7e7e7110316'
-                         '1df0110370d5d640e2d2c9d71103831d4011038e1d601101f8130513'))
+                         '1df0110370d5d640e2d2c9d71103831d4011038e1d601101f813'))
 
 SCREEN2 = bytes.fromhex('05c11100151d304c606011076760606e1d00')
 
