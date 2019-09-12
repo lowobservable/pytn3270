@@ -269,7 +269,7 @@ class Emulator:
         self.logger.debug('Erase All Unprotected')
 
         for (start_address, end_address, attribute) in self.get_fields():
-            for address in range(start_address, end_address + 1):
+            for address in self._get_addresses(start_address, end_address):
                 self.cells[address] = CharacterCell(0x00)
 
             attribute.modified = False
