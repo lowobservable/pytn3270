@@ -453,7 +453,7 @@ class Emulator:
         return self._wrap_address(address + 1)
 
     def _shift_left(self, start_address, end_address):
-        addresses = self._get_addresses(start_address, end_address)
+        addresses = list(self._get_addresses(start_address, end_address))
 
         for (left_address, right_address) in zip(addresses, addresses[1:]):
             self.cells[left_address].byte = self.cells[right_address].byte
