@@ -210,25 +210,23 @@ class Emulator:
         return bytes([self.cells[address].byte if isinstance(self.cells[address], CharacterCell) else 0x00 for address in addresses])
 
     def get_field(self, address):
-        """Get the unprotected field containing the address."""
+        """Get the unprotected field containing or starting at the address."""
         (attribute, start_attribute_address) = self.find_attribute(address)
 
         if attribute is None or attribute.protected:
             raise ProtectedCellOperatorError
 
-        addresses = self._get_addresses(address, self._wrap_address(address - 1))
-
-        # TODO: Is this predicate correct?
-        end_attribute_address = next((address for address in addresses
-                                      if isinstance(self.cells[address], AttributeCell)),
-                                     None)
-
         start_address = self._wrap_address(start_attribute_address + 1)
 
-        if end_attribute_address is not None:
-            end_address = self._wrap_address(end_attribute_address - 1)
-        else:
-            end_address = self._wrap_address(start_attribute_address - 1)
+        # By using the field start attribute address as the search end address we know
+        # there will be at least one attribute byte found even in the case of a single
+        # field.
+        addresses = self._get_addresses(start_address, start_attribute_address)
+
+        end_attribute_address = next((address for address in addresses
+                                      if isinstance(self.cells[address], AttributeCell)))
+
+        end_address = self._wrap_address(end_attribute_address - 1)
 
         return (start_address, end_address, attribute)
 
@@ -240,7 +238,7 @@ class Emulator:
             cell = self.cells[address]
 
             if isinstance(cell, AttributeCell) and not cell.attribute.protected:
-                field = self.get_field(self._wrap_address(address + 1))
+                field = self.get_field(address)
 
                 fields.append(field)
 
