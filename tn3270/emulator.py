@@ -248,8 +248,10 @@ class Emulator:
 
     def find_attribute(self, address):
         """Find the applicable attribute for the address."""
-        for address in self._get_addresses(address, self._wrap_address(address + 1),
-                                           direction=-1):
+        addresses = self._get_addresses(address, self._wrap_address(address + 1),
+                                        direction=-1)
+
+        for address in addresses:
             cell = self.cells[address]
 
             if isinstance(cell, AttributeCell):
@@ -308,18 +310,13 @@ class Emulator:
             elif order == Order.SBA:
                 self.address = data[0]
             elif order == Order.EUA:
-                unprotected_addresses = set()
-
-                for (start_address, end_address, _) in self.get_fields():
-                    unprotected_addresses.update(range(start_address, end_address + 1))
-
                 stop_address = data[0]
 
-                if self.address == stop_address:
-                    addresses = range(0, self.rows * self.columns)
-                else:
-                    addresses = self._get_addresses(self.address,
-                                                    self._wrap_address(stop_address - 1))
+                # TODO: Validate stop_address is in range...
+                end_address = self._wrap_address(stop_address - 1)
+
+                addresses = self._get_addresses(self.address, end_address)
+                unprotected_addresses = self._get_unprotected_addresses()
 
                 for address in unprotected_addresses.intersection(addresses):
                     self.cells[address] = CharacterCell(0x00)
@@ -340,11 +337,10 @@ class Emulator:
             elif order == Order.RA:
                 (stop_address, byte) = data
 
-                if self.address == stop_address:
-                    addresses = range(0, self.rows * self.columns)
-                else:
-                    addresses = self._get_addresses(self.address,
-                                                    self._wrap_address(stop_address - 1))
+                # TODO: Validate stop_address is in range...
+                end_address = self._wrap_address(stop_address - 1)
+
+                addresses = self._get_addresses(self.address, end_address)
 
                 for address in addresses:
                     self.cells[address] = CharacterCell(byte)
@@ -427,6 +423,14 @@ class Emulator:
             return address % (self.rows * self.columns)
 
         return address
+
+    def _get_unprotected_addresses(self):
+        addresses = set()
+
+        for (start_address, end_address, _) in self.get_fields():
+            addresses.update(self._get_addresses(start_address, end_address))
+
+        return addresses
 
     def _calculate_tab_address(self, address, direction):
         if direction < 0:
