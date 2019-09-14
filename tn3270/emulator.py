@@ -43,8 +43,11 @@ class Emulator:
         self.columns = columns
 
         self.cells = [CharacterCell(0x00) for index in range(self.rows * self.columns)]
+        self.dirty = set(range(self.rows * self.columns))
+
         self.address = 0
         self.cursor_address = 0
+
         self.current_aid = AID.NONE
         self.keyboard_locked = True
 
@@ -154,9 +157,7 @@ class Emulator:
 
         # TODO: Implement numeric field validation.
 
-        cell = self.cells[self.cursor_address]
-
-        cell.byte = byte
+        self._write_character(self.cursor_address, byte)
 
         attribute.modified = True
 
@@ -260,7 +261,8 @@ class Emulator:
     def _erase(self):
         self.logger.debug('Erase')
 
-        self.cells = [CharacterCell(0x00) for index in range(self.rows * self.columns)]
+        for address in range(self.rows * self.columns):
+            self._write_character(address, 0x00)
 
         self.address = 0
         self.cursor_address = 0
@@ -270,7 +272,7 @@ class Emulator:
 
         for (start_address, end_address, attribute) in self.get_fields():
             for address in self._get_addresses(start_address, end_address):
-                self.cells[address] = CharacterCell(0x00)
+                self._write_character(address, 0x00)
 
             attribute.modified = False
 
@@ -317,13 +319,13 @@ class Emulator:
                 unprotected_addresses = self._get_unprotected_addresses()
 
                 for address in unprotected_addresses.intersection(addresses):
-                    self.cells[address] = CharacterCell(0x00)
+                    self._write_character(address, 0x00)
 
                 self.address = stop_address
             elif order == Order.IC:
                 self.cursor_address = self.address
             elif order == Order.SF:
-                self.cells[self.address] = AttributeCell(data[0])
+                self._write_attribute(self.address, data[0])
 
                 self.address += 1
             elif order == Order.SA:
@@ -341,12 +343,12 @@ class Emulator:
                 addresses = self._get_addresses(self.address, end_address)
 
                 for address in addresses:
-                    self.cells[address] = CharacterCell(byte)
+                    self._write_character(address, byte)
 
                 self.address = stop_address
             elif order is None:
                 for byte in data:
-                    self.cells[self.address] = CharacterCell(byte)
+                    self._write_character(self.address, byte)
 
                     self.address += 1
 
@@ -452,10 +454,40 @@ class Emulator:
 
         return self._wrap_address(address + 1)
 
+    def _write_attribute(self, index, attribute):
+        cell = self.cells[index]
+
+        if isinstance(cell, AttributeCell):
+            if cell.attribute.value == attribute.value:
+                return False
+
+            cell.attribute = attribute
+        else:
+            self.cells[index] = AttributeCell(attribute)
+
+        self.dirty.add(index)
+
+        return True
+
+    def _write_character(self, index, byte):
+        cell = self.cells[index]
+
+        if isinstance(cell, CharacterCell):
+            if cell.byte == byte:
+                return False
+
+            cell.byte = byte
+        else:
+            self.cells[index] = CharacterCell(byte)
+
+        self.dirty.add(index)
+
+        return True
+
     def _shift_left(self, start_address, end_address):
         addresses = list(self._get_addresses(start_address, end_address))
 
         for (left_address, right_address) in zip(addresses, addresses[1:]):
-            self.cells[left_address].byte = self.cells[right_address].byte
+            self._write_character(left_address, self.cells[right_address].byte)
 
-        self.cells[end_address].byte = 0x00
+        self._write_character(end_address, 0x00)
