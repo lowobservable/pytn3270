@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import context
 
-from tn3270.emulator import Emulator, AttributeCell, ProtectedCellOperatorError
+from tn3270.emulator import Emulator, AttributeCell, ProtectedCellOperatorError, FieldOverflowOperatorError
 from tn3270.datastream import AID
 
 SCREEN1 = bytes.fromhex(('05c3110000e2d6d4c5e3c8c9d5c740c9d540e3c8c540c6c9d9e2e340d9d6e611'
@@ -739,6 +739,50 @@ class InputTestCase(unittest.TestCase):
         text = self.emulator.get_bytes(fields[0][0], fields[0][1]).decode('cp500')
 
         self.assertEqual(text, 'VWXYZabcdefghijklmnopqrstuvwxyzKLMNOPQRSTU')
+
+    def test_insert(self):
+        # Arrange
+        self.emulator.cursor_address = 500
+
+        self.emulator.input(0xc1)
+        self.emulator.input(0xc4)
+        self.emulator.input(0xc5)
+
+        self.emulator.cursor_address = 504
+
+        self.emulator.input(0xc6)
+        self.emulator.input(0xc7)
+        self.emulator.input(0x40)
+        self.emulator.input(0xc8)
+
+        self.assertEqual(self.emulator.get_bytes(500, 509), bytes.fromhex('c1 c4 c5 00 c6 c7 40 c8 00 00'))
+
+        self.emulator.cursor_address = 501
+
+        # Act
+        self.emulator.input(0xc2, insert=True)
+        self.emulator.input(0xc3, insert=True)
+
+        # Assert
+        self.assertEqual(self.emulator.cursor_address, 503)
+
+        self.assertEqual(self.emulator.get_bytes(500, 509), bytes.fromhex('c1 c2 c3 c4 c5 c6 c7 40 c8 00'))
+
+    def test_insert_overflow(self):
+        # Arrange
+        self.emulator.cursor_address = 505
+
+        self.emulator.input(0xc1)
+        self.emulator.input(0xc2)
+        self.emulator.input(0xc3)
+        self.emulator.input(0xc4)
+        self.emulator.input(0xc5)
+
+        self.emulator.cursor_address = 505
+
+        # Act and assert
+        with self.assertRaises(FieldOverflowOperatorError):
+            self.emulator.input(0xc1, insert=True)
 
 class BackspaceTestCase(unittest.TestCase):
     def setUp(self):

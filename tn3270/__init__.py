@@ -9,5 +9,6 @@ from .emulator import (
     AttributeCell,
     CharacterCell,
     OperatorError,
-    ProtectedCellOperatorError
+    ProtectedCellOperatorError,
+    FieldOverflowOperatorError
 )

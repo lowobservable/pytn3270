@@ -31,6 +31,9 @@ class OperatorError(Exception):
 class ProtectedCellOperatorError(OperatorError):
     """Protected cell error."""
 
+class FieldOverflowOperatorError(OperatorError):
+    """Field overflow error."""
+
 class Emulator:
     """TN3270 emulator."""
 
@@ -145,17 +148,28 @@ class Emulator:
         """Cursor right key."""
         self.cursor_address = self._wrap_address(self.cursor_address + 1)
 
-    def input(self, byte):
+    def input(self, byte, insert=False):
         """Single character input."""
         if isinstance(self.cells[self.cursor_address], AttributeCell):
             raise ProtectedCellOperatorError
 
-        (attribute, _) = self.find_attribute(self.cursor_address)
+        (_, end_address, attribute) = self.get_field(self.cursor_address)
 
         if attribute is None or attribute.protected:
             raise ProtectedCellOperatorError
 
         # TODO: Implement numeric field validation.
+
+        if insert and self.cells[self.cursor_address].byte != 0x00:
+            addresses = self._get_addresses(self.cursor_address, end_address)
+
+            first_null_address = next((address for address in addresses
+                                       if self.cells[address].byte == 0x00), None)
+
+            if first_null_address is None:
+                raise FieldOverflowOperatorError
+
+            self._shift_right(self.cursor_address, first_null_address)
 
         self._write_character(self.cursor_address, byte)
 
@@ -491,3 +505,11 @@ class Emulator:
             self._write_character(left_address, self.cells[right_address].byte)
 
         self._write_character(end_address, 0x00)
+
+    def _shift_right(self, start_address, end_address):
+        addresses = list(self._get_addresses(start_address, end_address))
+
+        for (left_address, right_address) in reversed(list(zip(addresses, addresses[1:]))):
+            self._write_character(right_address, self.cells[left_address].byte)
+
+        self._write_character(start_address, 0x00)
