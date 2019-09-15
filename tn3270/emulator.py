@@ -92,6 +92,9 @@ class Emulator:
 
     def aid(self, aid):
         """AID key."""
+        if aid == AID.CLEAR:
+            self._clear()
+
         self.current_aid = aid
         self.keyboard_locked = True
 
@@ -275,11 +278,7 @@ class Emulator:
     def _erase(self):
         self.logger.debug('Erase')
 
-        for address in range(self.rows * self.columns):
-            self._write_character(address, 0x00)
-
-        self.address = 0
-        self.cursor_address = 0
+        self._clear()
 
     def _erase_all_unprotected(self):
         self.logger.debug('Erase All Unprotected')
@@ -369,6 +368,13 @@ class Emulator:
         if wcc.unlock_keyboard:
             self.current_aid = AID.NONE
             self.keyboard_locked = False
+
+    def _clear(self):
+        for address in range(self.rows * self.columns):
+            self._write_character(address, 0x00)
+
+        self.address = 0
+        self.cursor_address = 0
 
     def _read_buffer(self):
         orders = []

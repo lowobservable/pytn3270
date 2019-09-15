@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import context
 
-from tn3270.emulator import Emulator, AttributeCell, ProtectedCellOperatorError, FieldOverflowOperatorError
+from tn3270.emulator import Emulator, AttributeCell, CharacterCell, ProtectedCellOperatorError, FieldOverflowOperatorError
 from tn3270.datastream import AID
 
 SCREEN1 = bytes.fromhex(('05c3110000e2d6d4c5e3c8c9d5c740c9d540e3c8c540c6c9d9e2e340d9d6e611'
@@ -246,7 +246,7 @@ class UpdateTestCase(unittest.TestCase):
 
         self.assertEqual(self.emulator.cursor_address, 525)
 
-        self.emulator.aid(AID.CLEAR)
+        self.emulator.aid(AID.PA1)
 
         self.stream.write.reset_mock()
 
@@ -254,7 +254,7 @@ class UpdateTestCase(unittest.TestCase):
         self.emulator.update()
 
         # Assert
-        self.stream.write.assert_called_with(bytes.fromhex('6d020d1101f4c1c2c3c4c5110208c6c7c8c9d11102e4e7e7e7e7e71102f8e7e7e7e7e711030ce7e7e7e7e7'))
+        self.stream.write.assert_called_with(bytes.fromhex('6c020d1101f4c1c2c3c4c5110208c6c7c8c9d11102e4e7e7e7e7e71102f8e7e7e7e7e711030ce7e7e7e7e7'))
 
     def test_erase_all_unprotected(self):
         # Arrange
@@ -325,10 +325,10 @@ class AidTestCase(unittest.TestCase):
         self.assertEqual(self.emulator.cursor_address, 525)
 
         # Act
-        self.emulator.aid(AID.CLEAR)
+        self.emulator.aid(AID.PA1)
 
         # Assert
-        self.stream.write.assert_called_with(bytes.fromhex('6d'))
+        self.stream.write.assert_called_with(bytes.fromhex('6c'))
 
     def test_screen1_long_read(self):
         # Arrange
@@ -367,6 +367,31 @@ class AidTestCase(unittest.TestCase):
 
         # Assert
         self.stream.write.assert_called_with(bytes.fromhex('7d000a11076be5e6e7e8e9818283848586878889919293949596979899a2a3a4a5a6a7a8a9d2d3d4d5d6d7d8d9e2e3e4'))
+
+    def test_clear(self):
+        # Arrange
+        self.stream.read = Mock(return_value=SCREEN1)
+
+        self.emulator.update()
+
+        self.emulator.cursor_address = 505
+
+        for character in 'ABCDEFGHIJ'.encode('cp500'):
+            self.emulator.input(character)
+
+        self.assertEqual(self.emulator.cursor_address, 525)
+
+        # Act
+        self.emulator.aid(AID.CLEAR)
+
+        # Assert
+        self.stream.write.assert_called_with(bytes.fromhex('6d'))
+
+        self.assertEqual(self.emulator.address, 0)
+
+        self.assertTrue(all([isinstance(cell, CharacterCell) and cell.byte == 0x00 for cell in self.emulator.cells]))
+
+        self.assertEqual(self.emulator.cursor_address, 0)
 
 class TabTestCase(unittest.TestCase):
     def setUp(self):
