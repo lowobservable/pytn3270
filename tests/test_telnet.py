@@ -11,6 +11,20 @@ class OpenTestCase(unittest.TestCase):
 
         self.socket_mock = Mock()
 
+        patcher = patch('socket.create_connection')
+
+        create_connection_mock = patcher.start()
+
+        create_connection_mock.return_value = self.socket_mock
+
+        patcher = patch('tn3270.telnet.select')
+
+        select_mock = patcher.start()
+
+        select_mock.return_value = [[self.socket_mock]]
+
+        self.addCleanup(patch.stopall)
+
     def test_negotiation(self):
         # Arrange
         responses = [
@@ -28,12 +42,7 @@ class OpenTestCase(unittest.TestCase):
         self.assertFalse(self.telnet.is_3270)
 
         # Act
-        with patch('socket.create_connection') as create_connection_patch:
-            with patch('tn3270.telnet.select') as select_patch:
-                create_connection_patch.return_value = self.socket_mock
-                select_patch.return_value = [[self.socket_mock]]
-
-                self.telnet.open('mainframe', 23)
+        self.telnet.open('mainframe', 23)
 
         # Assert
         self.socket_mock.sendall.assert_any_call(bytes.fromhex('ff fc 28'))
@@ -53,13 +62,8 @@ class OpenTestCase(unittest.TestCase):
         self.assertFalse(self.telnet.is_3270)
 
         # Act and assert
-        with patch('socket.create_connection') as create_connection_patch:
-            with patch('tn3270.telnet.select') as select_patch:
-                create_connection_patch.return_value = self.socket_mock
-                select_patch.return_value = [[self.socket_mock]]
-
-                with self.assertRaisesRegex(Exception, 'Unable to negotiate 3270 mode'):
-                    self.telnet.open('mainframe', 23)
+        with self.assertRaisesRegex(Exception, 'Unable to negotiate 3270 mode'):
+            self.telnet.open('mainframe', 23)
 
 class ReadTestCase(unittest.TestCase):
     def setUp(self):
@@ -67,43 +71,45 @@ class ReadTestCase(unittest.TestCase):
 
         self.telnet.socket = Mock()
 
+        patcher = patch('tn3270.telnet.select')
+
+        self.select_mock = patcher.start()
+
+        self.select_mock.return_value = [[self.telnet.socket]]
+
+        self.addCleanup(patch.stopall)
+
     def test_multiple_records_in_single_recv(self):
         # Arrange
         self.telnet.socket.recv = Mock(return_value=bytes.fromhex('01 02 03 ff ef 04 05 06 ff ef'))
 
         # Act and assert
-        with patch('tn3270.telnet.select') as select_patch:
-            select_patch.return_value = [[self.telnet.socket]]
-
-            self.assertEqual(self.telnet.read(), bytes.fromhex('01 02 03'))
-            self.assertEqual(self.telnet.read(), bytes.fromhex('04 05 06'))
+        self.assertEqual(self.telnet.read(), bytes.fromhex('01 02 03'))
+        self.assertEqual(self.telnet.read(), bytes.fromhex('04 05 06'))
 
     def test_single_record_spans_multiple_recv(self):
         # Arrange
         self.telnet.socket.recv = Mock(side_effect=[bytes.fromhex('01 02 03'), bytes.fromhex('04 05 06 ff ef')])
 
         # Act and assert
-        with patch('tn3270.telnet.select') as select_patch:
-            select_patch.return_value = [[self.telnet.socket]]
-
-            self.assertEqual(self.telnet.read(), bytes.fromhex('01 02 03 04 05 06'))
+        self.assertEqual(self.telnet.read(), bytes.fromhex('01 02 03 04 05 06'))
 
     def test_timeout(self):
         # Arrange
         self.telnet.socket.recv = Mock(side_effect=[bytes.fromhex('01 02 03')])
 
+        self.select_mock.side_effect = [[[self.telnet.socket]], [[]]]
+
         # Act and assert
-        with patch('time.perf_counter') as perf_counter_patch:
-            with patch('tn3270.telnet.select') as select_patch:
-                perf_counter_patch.side_effect=[1, 3, 3, 7]
-                select_patch.side_effect = [[[self.telnet.socket]], [[]]]
+        with patch('time.perf_counter') as perf_counter_mock:
+            perf_counter_mock.side_effect=[1, 3, 3, 7]
 
-                self.telnet.read(timeout=5)
+            self.telnet.read(timeout=5)
 
-                self.assertEqual(select_patch.call_count, 2)
+            self.assertEqual(self.select_mock.call_count, 2)
 
-                self.assertEqual(select_patch.mock_calls[0][1][3], 5)
-                self.assertEqual(select_patch.mock_calls[1][1][3], 3)
+            self.assertEqual(self.select_mock.mock_calls[0][1][3], 5)
+            self.assertEqual(self.select_mock.mock_calls[1][1][3], 3)
 
     def test_recv_eof(self):
         # Arrange
@@ -112,11 +118,8 @@ class ReadTestCase(unittest.TestCase):
         self.assertFalse(self.telnet.eof)
 
         # Act and assert
-        with patch('tn3270.telnet.select') as select_patch:
-            select_patch.return_value = [[self.telnet.socket]]
-
-            with self.assertRaises(EOFError):
-                self.telnet.read()
+        with self.assertRaises(EOFError):
+            self.telnet.read()
 
         self.assertTrue(self.telnet.eof)
 
