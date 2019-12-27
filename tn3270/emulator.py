@@ -275,6 +275,10 @@ class Emulator:
 
         return (None, None)
 
+    def alarm(self):
+        """Alarm stub."""
+        pass
+
     def _erase(self):
         self.logger.debug('Erase')
 
@@ -368,6 +372,9 @@ class Emulator:
         if wcc.unlock_keyboard:
             self.current_aid = AID.NONE
             self.keyboard_locked = False
+
+        if wcc.alarm:
+            self.alarm()
 
     def _clear(self):
         for address in range(self.rows * self.columns):
