@@ -975,6 +975,74 @@ class DeleteTestCase(unittest.TestCase):
         self.assertTrue(self.emulator.cells[659].attribute.modified)
         self.assertEqual(self.emulator.get_bytes(660, 669), bytes.fromhex('00000000000000000000'))
 
+class EraseEndOfFieldTestCase(unittest.TestCase):
+    def setUp(self):
+        self.stream = Mock()
+
+        self.emulator = Emulator(self.stream, 24, 80)
+
+        self.stream.read = Mock(return_value=SCREEN1)
+
+        self.emulator.update()
+
+    def test_attribute_cell(self):
+        # Arrange
+        self.emulator.cursor_address = 499
+
+        # Act and assert
+        with self.assertRaises(ProtectedCellOperatorError):
+            self.emulator.erase_end_of_field()
+
+    def test_protected_cell(self):
+        # Arrange
+        self.emulator.cursor_address = 420
+
+        # Act and assert
+        with self.assertRaises(ProtectedCellOperatorError):
+            self.emulator.erase_end_of_field()
+
+    def test_from_middle(self):
+        # Arrange
+        address = 660
+
+        for character in 'ABCDEFGHIJ'.encode('cp500'):
+            self.emulator.cells[address].byte = character
+
+            address += 1
+
+        self.emulator.cursor_address = 665
+
+        self.assertFalse(self.emulator.cells[659].attribute.modified)
+
+        # Act
+        self.emulator.erase_end_of_field()
+
+        # Assert
+        self.assertEqual(self.emulator.cursor_address, 665)
+        self.assertTrue(self.emulator.cells[659].attribute.modified)
+        self.assertEqual(self.emulator.get_bytes(660, 669), bytes.fromhex('c1c2c3c4c50000000000'))
+
+    def test_from_start(self):
+        # Arrange
+        address = 660
+
+        for character in 'ABCDEFGHIJ'.encode('cp500'):
+            self.emulator.cells[address].byte = character
+
+            address += 1
+
+        self.emulator.cursor_address = 660
+
+        self.assertFalse(self.emulator.cells[659].attribute.modified)
+
+        # Act
+        self.emulator.erase_end_of_field()
+
+        # Assert
+        self.assertEqual(self.emulator.cursor_address, 660)
+        self.assertTrue(self.emulator.cells[659].attribute.modified)
+        self.assertEqual(self.emulator.get_bytes(660, 669), bytes.fromhex('00000000000000000000'))
+
 class EraseInputTestCase(unittest.TestCase):
     def test(self):
         # Arrange

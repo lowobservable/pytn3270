@@ -221,6 +221,18 @@ class Emulator:
 
         attribute.modified = True
 
+    def erase_end_of_field(self):
+        """Erase end of field (EOF) key."""
+        if isinstance(self.cells[self.cursor_address], AttributeCell):
+            raise ProtectedCellOperatorError
+
+        (_, end_address, attribute) = self.get_field(self.cursor_address)
+
+        for address in self._get_addresses(self.cursor_address, end_address):
+            self._write_character(address, 0x00)
+
+        attribute.modified = True
+
     def erase_input(self):
         """Erase input key."""
         for (start_address, end_address, attribute) in self.get_fields():
