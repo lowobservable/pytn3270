@@ -974,3 +974,39 @@ class DeleteTestCase(unittest.TestCase):
         self.assertEqual(self.emulator.cursor_address, 660)
         self.assertTrue(self.emulator.cells[659].attribute.modified)
         self.assertEqual(self.emulator.get_bytes(660, 669), bytes.fromhex('00000000000000000000'))
+
+class EraseInputTestCase(unittest.TestCase):
+    def test(self):
+        # Arrange
+        stream = Mock()
+
+        emulator = Emulator(stream, 24, 80)
+
+        stream.read = Mock(return_value=SCREEN1)
+
+        emulator.update()
+
+        emulator.cursor_address = 505
+
+        for character in 'ABCDEFGHIJ'.encode('cp500'):
+            emulator.input(character)
+
+        fields = emulator.get_fields()
+
+        self.assertTrue(fields[0][2].modified)
+        self.assertEqual(emulator.get_bytes(fields[0][0], fields[0][1]), bytes.fromhex('0000000000c1c2c3c4c5'))
+
+        self.assertTrue(fields[1][2].modified)
+        self.assertEqual(emulator.get_bytes(fields[1][0], fields[1][1]), bytes.fromhex('c6c7c8c9d10000000000'))
+
+        # Act
+        emulator.erase_input()
+
+        # Assert
+        fields = emulator.get_fields()
+
+        self.assertFalse(fields[0][2].modified)
+        self.assertEqual(emulator.get_bytes(fields[0][0], fields[0][1]), bytes.fromhex('00000000000000000000'))
+
+        self.assertFalse(fields[1][2].modified)
+        self.assertEqual(emulator.get_bytes(fields[1][0], fields[1][1]), bytes.fromhex('00000000000000000000'))

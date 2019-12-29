@@ -221,6 +221,19 @@ class Emulator:
 
         attribute.modified = True
 
+    def erase_input(self):
+        """Erase input key."""
+        for (start_address, end_address, attribute) in self.get_fields():
+            for address in self._get_addresses(start_address, end_address):
+                self._write_character(address, 0x00)
+
+            attribute.modified = False
+
+        # TODO: Confirm behavior but I think this should reposition the cursor to the
+        # first character location, after the field attribute, in the first unprotected
+        # field of the partition's character buffer - it is the same as Erase All
+        # Unprotected.
+
     def get_bytes(self, start_address, end_address):
         """Get character cell bytes."""
         addresses = self._get_addresses(start_address, end_address)
