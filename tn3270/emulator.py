@@ -9,6 +9,7 @@ import logging
 from .datastream import Command, Order, AID, parse_outbound_message, \
                         format_inbound_read_buffer_message, \
                         format_inbound_read_modified_message
+from .ebcdic import DUP
 
 class Cell:
     """A display cell."""
@@ -153,46 +154,24 @@ class Emulator:
 
     def input(self, byte, insert=False):
         """Single character input."""
-        if isinstance(self.cells[self.cursor_address], AttributeCell):
-            raise ProtectedCellOperatorError
+        self._input(byte, insert=insert)
 
-        (_, end_address, attribute) = self.get_field(self.cursor_address)
+    def dup(self, insert=False):
+        """Duplicate (DUP) key."""
+        self._input(DUP, insert=insert, move=False)
 
-        if attribute is None or attribute.protected:
-            raise ProtectedCellOperatorError
+        # TODO: Moving to the next unprotected field should be reusable - should the
+        # calculate_tab_address method be refactored to be more generic or at least
+        # a single next_unprotected filter?
+        addresses = self._get_addresses(self.cursor_address,
+                                        self._wrap_address(self.cursor_address - 1))
 
-        # TODO: Implement numeric field validation.
+        address = next((address for address in addresses
+                        if isinstance(self.cells[address], AttributeCell)
+                        and not self.cells[address].attribute.protected), None)
 
-        if insert and self.cells[self.cursor_address].byte != 0x00:
-            addresses = self._get_addresses(self.cursor_address, end_address)
-
-            first_null_address = next((address for address in addresses
-                                       if self.cells[address].byte == 0x00), None)
-
-            if first_null_address is None:
-                raise FieldOverflowOperatorError
-
-            self._shift_right(self.cursor_address, first_null_address)
-
-        self._write_character(self.cursor_address, byte)
-
-        attribute.modified = True
-
-        self.cursor_address = self._wrap_address(self.cursor_address + 1)
-
-        # TODO: Is this correct - does this only happen if skip?
-        if isinstance(self.cells[self.cursor_address], AttributeCell):
-            skip = self.cells[self.cursor_address].attribute.skip
-
-            addresses = self._get_addresses(self.cursor_address,
-                                            self._wrap_address(self.cursor_address - 1))
-
-            address = next((address for address in addresses
-                            if isinstance(self.cells[address], AttributeCell)
-                            and (not skip or (skip and not self.cells[address].attribute.protected))), None)
-
-            if address is not None:
-                self.cursor_address = self._wrap_address(address + 1)
+        if address is not None:
+            self.cursor_address = self._wrap_address(address + 1)
 
     def backspace(self):
         """Backspace key."""
@@ -455,6 +434,51 @@ class Emulator:
             self.logger.debug(f'\tData   = {bytes_}')
 
         self.stream.write(bytes_)
+
+    def _input(self, byte, insert=False, move=True):
+        if isinstance(self.cells[self.cursor_address], AttributeCell):
+            raise ProtectedCellOperatorError
+
+        (_, end_address, attribute) = self.get_field(self.cursor_address)
+
+        if attribute is None or attribute.protected:
+            raise ProtectedCellOperatorError
+
+        # TODO: Implement numeric field validation.
+
+        if insert and self.cells[self.cursor_address].byte != 0x00:
+            addresses = self._get_addresses(self.cursor_address, end_address)
+
+            first_null_address = next((address for address in addresses
+                                       if self.cells[address].byte == 0x00), None)
+
+            if first_null_address is None:
+                raise FieldOverflowOperatorError
+
+            self._shift_right(self.cursor_address, first_null_address)
+
+        self._write_character(self.cursor_address, byte)
+
+        attribute.modified = True
+
+        if not move:
+            return
+
+        self.cursor_address = self._wrap_address(self.cursor_address + 1)
+
+        # TODO: Is this correct - does this only happen if skip?
+        if isinstance(self.cells[self.cursor_address], AttributeCell):
+            skip = self.cells[self.cursor_address].attribute.skip
+
+            addresses = self._get_addresses(self.cursor_address,
+                                            self._wrap_address(self.cursor_address - 1))
+
+            address = next((address for address in addresses
+                            if isinstance(self.cells[address], AttributeCell)
+                            and (not skip or (skip and not self.cells[address].attribute.protected))), None)
+
+            if address is not None:
+                self.cursor_address = self._wrap_address(address + 1)
 
     def _get_addresses(self, start_address, end_address, direction=1):
         if direction < 0:

@@ -821,6 +821,44 @@ class InputTestCase(unittest.TestCase):
         with self.assertRaises(FieldOverflowOperatorError):
             self.emulator.input(0xc1, insert=True)
 
+class DupTestCase(unittest.TestCase):
+    def setUp(self):
+        self.stream = Mock()
+
+        self.emulator = Emulator(self.stream, 24, 80)
+
+        self.stream.read = Mock(return_value=SCREEN1)
+
+        self.emulator.update()
+
+    def test_attribute_cell(self):
+        # Arrange
+        self.emulator.cursor_address = 499
+
+        # Act and assert
+        with self.assertRaises(ProtectedCellOperatorError):
+            self.emulator.dup()
+
+    def test_protected_cell(self):
+        # Arrange
+        self.emulator.cursor_address = 420
+
+        # Act and assert
+        with self.assertRaises(ProtectedCellOperatorError):
+            self.emulator.dup()
+
+    def test_first_field_character(self):
+        # Arrange
+        self.emulator.cursor_address = 500
+
+        # Act
+        self.emulator.dup()
+
+        # Assert
+        self.assertEqual(self.emulator.cursor_address, 520)
+        self.assertTrue(self.emulator.cells[499].attribute.modified)
+        self.assertEqual(self.emulator.cells[500].byte, 0x1c)
+
 class BackspaceTestCase(unittest.TestCase):
     def setUp(self):
         self.stream = Mock()
