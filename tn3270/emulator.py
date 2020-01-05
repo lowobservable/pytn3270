@@ -144,13 +144,19 @@ class Emulator:
         """Cursor down key."""
         self.cursor_address = self._wrap_address(self.cursor_address + self.columns)
 
-    def cursor_left(self):
+    def cursor_left(self, rate=1):
         """Cursor left key."""
-        self.cursor_address = self._wrap_address(self.cursor_address - 1)
+        if rate < 1 or rate > 2:
+            raise ValueError('Invalid rate')
 
-    def cursor_right(self):
+        self.cursor_address = self._wrap_address(self.cursor_address - rate)
+
+    def cursor_right(self, rate=1):
         """Cursor right key."""
-        self.cursor_address = self._wrap_address(self.cursor_address + 1)
+        if rate < 1 or rate > 2:
+            raise ValueError('Invalid rate')
+
+        self.cursor_address = self._wrap_address(self.cursor_address + rate)
 
     def input(self, byte, insert=False):
         """Single character input."""

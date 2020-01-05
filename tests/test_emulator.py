@@ -657,6 +657,22 @@ class CursorLeftTestCase(unittest.TestCase):
         # Assert
         self.assertEqual(self.emulator.cursor_address, 1918)
 
+    def test_fast(self):
+        # Arrange
+        self.emulator.cursor_address = 1919
+
+        # Act
+        self.emulator.cursor_left(2)
+
+        # Assert
+        self.assertEqual(self.emulator.cursor_address, 1917)
+
+    def test_invalid_rate(self):
+        for rate in [-1, 0, 3]:
+            with self.subTest(rate=rate):
+                with self.assertRaisesRegex(ValueError, 'Invalid rate'):
+                    self.emulator.cursor_left(rate)
+
 class CursorRightTestCase(unittest.TestCase):
     def setUp(self):
         self.emulator = Emulator(None, 24, 80)
@@ -680,6 +696,22 @@ class CursorRightTestCase(unittest.TestCase):
 
         # Assert
         self.assertEqual(self.emulator.cursor_address, 0)
+
+    def test_fast(self):
+        # Arrange
+        self.emulator.cursor_address = 0
+
+        # Act
+        self.emulator.cursor_right(2)
+
+        # Assert
+        self.assertEqual(self.emulator.cursor_address, 2)
+
+    def test_invalid_rate(self):
+        for rate in [-1, 0, 3]:
+            with self.subTest(rate=rate):
+                with self.assertRaisesRegex(ValueError, 'Invalid rate'):
+                    self.emulator.cursor_right(rate)
 
 class InputTestCase(unittest.TestCase):
     def setUp(self):
