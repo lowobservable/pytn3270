@@ -9,7 +9,7 @@ import logging
 from .datastream import Command, Order, AID, parse_outbound_message, \
                         format_inbound_read_buffer_message, \
                         format_inbound_read_modified_message
-from .ebcdic import DUP
+from .ebcdic import DUP, FM
 
 class Cell:
     """A display cell."""
@@ -172,6 +172,10 @@ class Emulator:
 
         if address is not None:
             self.cursor_address = self._wrap_address(address + 1)
+
+    def field_mark(self, insert=False):
+        """Field mark (FM) key."""
+        self._input(FM, insert=insert)
 
     def backspace(self):
         """Backspace key."""
