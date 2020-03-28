@@ -136,6 +136,7 @@ class Telnet:
         elif len(self.iac_buffer) == 1:
             if byte == IAC:
                 self.buffer += IAC
+                self.iac_buffer.clear()
                 return
 
             if byte == RFC855_EOR:
@@ -149,7 +150,7 @@ class Telnet:
                 self.iac_buffer += byte
                 return
 
-            self.logger.warning(f'Unexpected byte 0x{byte:02x} in IAC state')
+            self.logger.warning(f'Unexpected byte 0x{byte[0]:02x} in IAC state')
 
             self.iac_buffer.clear()
         elif len(self.iac_buffer) > 1:
