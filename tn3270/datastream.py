@@ -6,10 +6,6 @@ tn3270.datastream
 from enum import Enum
 import logging
 
-# http://www.prycroft6.com.au/misc/3270.html
-# https://www.tommysprinkle.com/mvs/P3270/start.htm
-# https://www.ibm.com/support/knowledgecenter/en/SSGMGV_3.1.0/com.ibm.cics.ts31.doc/dfhp3/dfhp3bg.htm#DFHP3BG
-
 logger = logging.getLogger(__name__)
 
 class Command(Enum):
