@@ -48,6 +48,16 @@ class UpdateTestCase(unittest.TestCase):
         self.assertIsInstance(self.emulator.cells[752], AttributeCell)
         self.assertEqual(self.emulator.get_bytes(753, 763), bytes.fromhex('c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'))
 
+    def test_write_wrap(self):
+        # Arrange
+        self.stream.read = Mock(return_value=bytes.fromhex('01 c3 11 07 7c c1 c2 c3 c4 c5 c6 c7 c8'))
+
+        # Act and assert
+        self.assertTrue(self.emulator.update())
+
+        self.assertEqual(self.emulator.get_bytes(0, 3), bytes.fromhex('c5 c6 c7 c8'))
+        self.assertEqual(self.emulator.get_bytes(1916, 1919), bytes.fromhex('c1 c2 c3 c4'))
+
     def test_write_alarm(self):
         # Arrange
         self.emulator.alarm = Mock()

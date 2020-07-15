@@ -358,7 +358,7 @@ class Emulator:
             elif order == Order.SF:
                 self._write_attribute(self.address, data[0])
 
-                self.address += 1
+                self.address = self._wrap_address(self.address + 1)
             elif order == Order.SA:
                 raise NotImplementedError('SA order is not supported')
             elif order == Order.SFE:
@@ -381,7 +381,7 @@ class Emulator:
                 for byte in data:
                     self._write_character(self.address, byte)
 
-                    self.address += 1
+                    self.address = self._wrap_address(self.address + 1)
 
         if wcc.unlock_keyboard:
             self.current_aid = AID.NONE
