@@ -220,7 +220,7 @@ class FormatInboundReadModifiedMessageTestCase(unittest.TestCase):
         bytes_ = format_inbound_read_modified_message(AID.ENTER, 800, [(10, bytes.fromhex('00 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4 00'))])
 
         # Assert
-        self.assertEqual(bytes_, bytes.fromhex('7d 03 20 11 00 0a c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'))
+        self.assertEqual(bytes_, bytes.fromhex('7d 4c 60 11 40 4a c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'))
 
     def test_clear(self):
         # Act
@@ -234,7 +234,7 @@ class FormatInboundReadModifiedMessageTestCase(unittest.TestCase):
         bytes_ = format_inbound_read_modified_message(AID.CLEAR, 800, [(10, bytes.fromhex('00 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4 00'))], all_=True)
 
         # Assert
-        self.assertEqual(bytes_, bytes.fromhex('6d 03 20 11 00 0a c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'))
+        self.assertEqual(bytes_, bytes.fromhex('6d 4c 60 11 40 4a c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'))
 
     # TODO: Separate strip nulls test?
 

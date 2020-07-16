@@ -264,7 +264,7 @@ SIX_BIT_CHARACTER_MAP = [
     0xf8, 0xf9, 0x7a, 0x7b, 0x7c, 0x7d, 0x7e, 0x7f
 ]
 
-def format_address(address, size=14):
+def format_address(address, size=12):
     """Format an address."""
 
     # TODO: Validate that the address is within range based on size.
