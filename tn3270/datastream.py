@@ -73,7 +73,7 @@ class Attribute:
 
     def __init__(self, value):
         # TODO: Validate input - looks like there is a parity bit.
-        self.value = value
+        self._original_value = value
 
         self.protected = bool(value & 0x20)
         self.numeric = bool(value & 0x10)
@@ -85,6 +85,12 @@ class Attribute:
         self.hidden = (display == 3)
 
         self.modified = bool(value & 0x01)
+
+    @property
+    def value(self):
+        # TODO: Reconstruct the entire attribute from parts, this assumes
+        # modified is the only part that can change (which is true).
+        return (self._original_value & 0xfe) | int(self.modified)
 
     def __repr__(self):
         return (f'<Attribute protected={self.protected}, numeric={self.numeric}, '
