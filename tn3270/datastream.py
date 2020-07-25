@@ -6,6 +6,9 @@ tn3270.datastream
 from enum import Enum
 import logging
 
+from .attributes import Attribute, ExtendedAttributeType, ExtendedAttribute, \
+                        HighlightExtendedAttribute, ForegroundColorExtendedAttribute
+
 logger = logging.getLogger(__name__)
 
 class Command(Enum):
@@ -67,35 +70,6 @@ class Order(Enum):
     RA = 0x3c   # Repeat to Address
 
 ORDERS = {order.value for order in Order}
-
-class Attribute:
-    """Attribute."""
-
-    def __init__(self, value):
-        # TODO: Validate input - looks like there is a parity bit.
-        self._original_value = value
-
-        self.protected = bool(value & 0x20)
-        self.numeric = bool(value & 0x10)
-        self.skip = self.protected and self.numeric
-
-        display = (value & 0x0c) >> 2
-
-        self.intensified = (display == 2)
-        self.hidden = (display == 3)
-
-        self.modified = bool(value & 0x01)
-
-    @property
-    def value(self):
-        # TODO: Reconstruct the entire attribute from parts, this assumes
-        # modified is the only part that can change (which is true).
-        return (self._original_value & 0xfe) | int(self.modified)
-
-    def __repr__(self):
-        return (f'<Attribute protected={self.protected}, numeric={self.numeric}, '
-                f'skip={self.skip}, intensified={self.intensified}, '
-                f'hidden={self.hidden}, modified={self.modified}>')
 
 class AID(Enum):
     """Attention identifier."""
@@ -211,9 +185,11 @@ def parse_orders(bytes_):
             elif order == Order.GE:
                 raise NotImplementedError('GE order is not supported')
             elif order == Order.SBA:
+                # TODO: validate size
                 parameters = [parse_address(bytes_[index:index+2])[0]]
                 index += 2
             elif order == Order.EUA:
+                # TODO: validate size
                 parameters = [parse_address(bytes_[index:index+2])[0]]
                 index += 2
             elif order == Order.IC:
@@ -222,12 +198,15 @@ def parse_orders(bytes_):
                 parameters = [Attribute(bytes_[index])]
                 index += 1
             elif order == Order.SA:
-                raise NotImplementedError('SA order is not supported')
+                # TODO: validate size
+                parameters = [parse_extended_attribute(bytes_[index:index+2])]
+                index += 2
             elif order == Order.SFE:
                 raise NotImplementedError('SFE order is not supported')
             elif order == Order.MF:
                 raise NotImplementedError('MF order is not supported')
             elif order == Order.RA:
+                # TODO: validate size
                 parameters = [parse_address(bytes_[index:index+2])[0], bytes_[index+2]]
                 index += 3
 
@@ -285,6 +264,24 @@ def format_inbound_structured_fields(structured_fields):
         bytes_ += data
 
     return bytes_
+
+def parse_extended_attribute(bytes_):
+    """Parse an extended attribute."""
+
+    if len(bytes_) != 2:
+        raise Exception('Invalid extended attribute')
+
+    type_ = bytes_[0]
+    value = bytes_[1]
+
+    if type_ == ExtendedAttributeType.HIGHLIGHT:
+        return HighlightExtendedAttribute(type_, value)
+    elif type_ == ExtendedAttributeType.FOREGROUND_COLOR:
+        return ForegroundColorExtendedAttribute(type_, value)
+
+    logger.warning(f'Extended attribute 0x{type_:02x} not supported')
+
+    return ExtendedAttribute(type_, value)
 
 def parse_address(bytes_, size=None):
     """Parse an address."""

@@ -2,7 +2,8 @@ import unittest
 
 import context
 
-from tn3270.datastream import Command, Order, AID, WCC, Attribute, parse_outbound_message, format_inbound_read_modified_message, parse_orders, parse_outbound_structured_fields, format_inbound_structured_fields, parse_address, format_address
+from tn3270.attributes import Attribute, ExtendedAttribute, HighlightExtendedAttribute, ForegroundColorExtendedAttribute
+from tn3270.datastream import Command, Order, AID, WCC, parse_outbound_message, format_inbound_read_modified_message, parse_orders, parse_outbound_structured_fields, format_inbound_structured_fields, parse_extended_attribute, parse_address, format_address
 
 class WCCTestCase(unittest.TestCase):
     def test_reset(self):
@@ -44,79 +45,6 @@ class WCCTestCase(unittest.TestCase):
         self.assertFalse(wcc.alarm)
         self.assertFalse(wcc.unlock_keyboard)
         self.assertTrue(wcc.reset_modified)
-
-class AttributeTestCase(unittest.TestCase):
-    def test_protected(self):
-        # Act
-        attribute = Attribute(0b00100000)
-
-        # Assert
-        self.assertTrue(attribute.protected)
-        self.assertFalse(attribute.numeric)
-        self.assertFalse(attribute.skip)
-        self.assertFalse(attribute.intensified)
-        self.assertFalse(attribute.hidden)
-        self.assertFalse(attribute.modified)
-
-    def test_numeric(self):
-        # Act
-        attribute = Attribute(0b00010000)
-
-        # Assert
-        self.assertFalse(attribute.protected)
-        self.assertTrue(attribute.numeric)
-        self.assertFalse(attribute.skip)
-        self.assertFalse(attribute.intensified)
-        self.assertFalse(attribute.hidden)
-        self.assertFalse(attribute.modified)
-
-    def test_skip(self):
-        # Act
-        attribute = Attribute(0b00110000)
-
-        # Assert
-        self.assertTrue(attribute.protected)
-        self.assertTrue(attribute.numeric)
-        self.assertTrue(attribute.skip)
-        self.assertFalse(attribute.intensified)
-        self.assertFalse(attribute.hidden)
-        self.assertFalse(attribute.modified)
-
-    def test_intensified(self):
-        # Act
-        attribute = Attribute(0b00001000)
-
-        # Assert
-        self.assertFalse(attribute.protected)
-        self.assertFalse(attribute.numeric)
-        self.assertFalse(attribute.skip)
-        self.assertTrue(attribute.intensified)
-        self.assertFalse(attribute.hidden)
-        self.assertFalse(attribute.modified)
-
-    def test_hidden(self):
-        # Act
-        attribute = Attribute(0b00001100)
-
-        # Assert
-        self.assertFalse(attribute.protected)
-        self.assertFalse(attribute.numeric)
-        self.assertFalse(attribute.skip)
-        self.assertFalse(attribute.intensified)
-        self.assertTrue(attribute.hidden)
-        self.assertFalse(attribute.modified)
-
-    def test_modified(self):
-        # Act
-        attribute = Attribute(0b00000001)
-
-        # Assert
-        self.assertFalse(attribute.protected)
-        self.assertFalse(attribute.numeric)
-        self.assertFalse(attribute.skip)
-        self.assertFalse(attribute.intensified)
-        self.assertFalse(attribute.hidden)
-        self.assertTrue(attribute.modified)
 
 class ParseOutboundMessageTestCase(unittest.TestCase):
     def test_write(self):
@@ -308,8 +236,14 @@ class ParseOrdersTestCase(unittest.TestCase):
         self.assertEqual(orders[0][1][0].value, 0xf8)
 
     def test_set_attribute(self):
-        with self.assertRaises(NotImplementedError):
-            list(parse_orders(bytes.fromhex('28')))
+        # Act
+        orders = list(parse_orders(bytes.fromhex('28 41 f2')))
+
+        # Assert
+        self.assertEqual(orders[0][0], Order.SA)
+
+        self.assertIsInstance(orders[0][1][0], HighlightExtendedAttribute)
+        self.assertTrue(orders[0][1][0].reverse)
 
     def test_start_field_extended(self):
         with self.assertRaises(NotImplementedError):
@@ -345,6 +279,29 @@ class FormatInboundStructuredFieldsTestCase(unittest.TestCase):
 
         # Assert
         self.assertEqual(bytes_, bytes.fromhex('88 00 05 81 80 80'))
+
+class ParseExtendedAttributeTestCase(unittest.TestCase):
+    def test_highlight(self):
+        extended_attribute = parse_extended_attribute(bytes.fromhex('41 f2'))
+
+        self.assertIsInstance(extended_attribute, HighlightExtendedAttribute)
+
+    def test_foreground_color(self):
+        extended_attribute = parse_extended_attribute(bytes.fromhex('42 00'))
+
+        self.assertIsInstance(extended_attribute, ForegroundColorExtendedAttribute)
+
+    def test_unsupported(self):
+        extended_attribute = parse_extended_attribute(bytes.fromhex('43 00'))
+
+        self.assertIsInstance(extended_attribute, ExtendedAttribute)
+
+        self.assertEqual(extended_attribute.type_, 0x43)
+        self.assertEqual(extended_attribute.value, 0x00)
+
+    def test_invalid(self):
+        with self.assertRaises(Exception):
+            parse_extended_attribute(bytes.fromhex('00'))
 
 class ParseAddressTestCase(unittest.TestCase):
     def test_12_bit_address_with_01_prefix(self):

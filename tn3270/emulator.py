@@ -10,22 +10,64 @@ from .datastream import Command, Order, AID, parse_outbound_message, \
                         format_inbound_read_buffer_message, \
                         format_inbound_read_modified_message, \
                         format_inbound_structured_fields
+from .attributes import HighlightExtendedAttribute, ForegroundColorExtendedAttribute
 from .structured_fields import StructuredField, ReadPartitionType, QueryReply
 from .ebcdic import DUP, FM
+
+class CellFormatting:
+    """Display cell formatting."""
+
+    def __init__(self, formatting=None, extended_attributes=None):
+        self.blink = False
+        self.reverse = False
+        self.underscore = False
+        self.color = 0x00
+
+        if formatting is not None:
+            self.blink = formatting.blink
+            self.reverse = formatting.reverse
+            self.underscore = formatting.underscore
+            self.color = formatting.color
+
+        if extended_attributes is not None:
+            for extended_attribute in extended_attributes:
+                self._apply_extended_attribute(extended_attribute)
+
+    def _apply_extended_attribute(self, extended_attribute):
+        if isinstance(extended_attribute, HighlightExtendedAttribute):
+            self.blink = extended_attribute.blink
+            self.reverse = extended_attribute.reverse
+            self.underscore = extended_attribute.underscore
+        elif isinstance(extended_attribute, ForegroundColorExtendedAttribute):
+            self.color = extended_attribute.color
+
+    def __eq__(self, other):
+        if not isinstance(other, CellFormatting):
+            return False
+
+        return other.blink == self.blink and other.reverse == self.reverse and \
+               other.underscore == self.underscore and other.color == self.color
 
 class Cell:
     """A display cell."""
 
+    def __init__(self, formatting=None):
+        self.formatting = formatting
+
 class AttributeCell(Cell):
     """A attribute display cell."""
 
-    def __init__(self, attribute):
+    def __init__(self, attribute, formatting=None):
+        super().__init__(formatting)
+
         self.attribute = attribute
 
 class CharacterCell(Cell):
     """A character display cell."""
 
-    def __init__(self, byte):
+    def __init__(self, byte, formatting=None):
+        super().__init__(formatting)
+
         self.byte = byte
 
 class OperatorError(Exception):
@@ -220,7 +262,7 @@ class Emulator:
         (_, end_address, attribute) = self.get_field(self.cursor_address)
 
         for address in self._get_addresses(self.cursor_address, end_address):
-            self._write_character(address, 0x00)
+            self._write_character(address, 0x00, preserve_formatting=True)
 
         attribute.modified = True
 
@@ -228,7 +270,7 @@ class Emulator:
         """Erase input key."""
         for (start_address, end_address, attribute) in self.get_fields():
             for address in self._get_addresses(start_address, end_address):
-                self._write_character(address, 0x00)
+                self._write_character(address, 0x00, preserve_formatting=True)
 
             attribute.modified = False
 
@@ -305,7 +347,7 @@ class Emulator:
 
         for (start_address, end_address, attribute) in self.get_fields():
             for address in self._get_addresses(start_address, end_address):
-                self._write_character(address, 0x00)
+                self._write_character(address, 0x00, preserve_formatting=True)
 
             attribute.modified = False
 
@@ -324,6 +366,8 @@ class Emulator:
             for cell in self.cells:
                 if isinstance(cell, AttributeCell):
                     cell.attribute.modified = False
+
+        formatting = None
 
         for (order, data) in orders:
             if self.logger.isEnabledFor(logging.DEBUG):
@@ -352,17 +396,19 @@ class Emulator:
                 unprotected_addresses = self._get_unprotected_addresses()
 
                 for address in unprotected_addresses.intersection(addresses):
-                    self._write_character(address, 0x00)
+                    self._write_character(address, 0x00, preserve_formatting=True)
 
                 self.address = stop_address
             elif order == Order.IC:
                 self.cursor_address = self.address
             elif order == Order.SF:
-                self._write_attribute(self.address, data[0])
+                formatting = None
+
+                self._write_attribute(self.address, data[0], formatting)
 
                 self.address = self._wrap_address(self.address + 1)
             elif order == Order.SA:
-                raise NotImplementedError('SA order is not supported')
+                formatting = CellFormatting(formatting, extended_attributes=[data[0]])
             elif order == Order.SFE:
                 raise NotImplementedError('SFE order is not supported')
             elif order == Order.MF:
@@ -376,12 +422,12 @@ class Emulator:
                 addresses = self._get_addresses(self.address, end_address)
 
                 for address in addresses:
-                    self._write_character(address, byte)
+                    self._write_character(address, byte, formatting)
 
                 self.address = stop_address
             elif order is None:
                 for byte in data:
-                    self._write_character(self.address, byte)
+                    self._write_character(self.address, byte, formatting)
 
                     self.address = self._wrap_address(self.address + 1)
 
@@ -405,7 +451,7 @@ class Emulator:
 
     def _clear(self):
         for address in range(self.rows * self.columns):
-            self._write_character(address, 0x00)
+            self._write_character(address, 0x00, None)
 
         self.address = 0
         self.cursor_address = 0
@@ -496,7 +542,7 @@ class Emulator:
 
             self._shift_right(self.cursor_address, first_null_address)
 
-        self._write_character(self.cursor_address, byte)
+        self._write_character(self.cursor_address, byte, preserve_formatting=True)
 
         attribute.modified = True
 
@@ -569,31 +615,39 @@ class Emulator:
 
         return self._wrap_address(address + 1)
 
-    def _write_attribute(self, index, attribute):
+    def _write_attribute(self, index, attribute, formatting=None, preserve_formatting=False):
         cell = self.cells[index]
 
+        if preserve_formatting:
+            formatting = cell.formatting
+
         if isinstance(cell, AttributeCell):
-            if cell.attribute.value == attribute.value:
+            if cell.attribute.value == attribute.value and cell.formatting == formatting:
                 return False
 
             cell.attribute = attribute
+            cell.formatting = formatting
         else:
-            self.cells[index] = AttributeCell(attribute)
+            self.cells[index] = AttributeCell(attribute, formatting)
 
         self.dirty.add(index)
 
         return True
 
-    def _write_character(self, index, byte):
+    def _write_character(self, index, byte, formatting=None, preserve_formatting=False):
         cell = self.cells[index]
 
+        if preserve_formatting:
+            formatting = cell.formatting
+
         if isinstance(cell, CharacterCell):
-            if cell.byte == byte:
+            if cell.byte == byte and cell.formatting == formatting:
                 return False
 
             cell.byte = byte
+            cell.formatting = formatting
         else:
-            self.cells[index] = CharacterCell(byte)
+            self.cells[index] = CharacterCell(byte, formatting)
 
         self.dirty.add(index)
 
@@ -603,17 +657,19 @@ class Emulator:
         addresses = list(self._get_addresses(start_address, end_address))
 
         for (left_address, right_address) in zip(addresses, addresses[1:]):
-            self._write_character(left_address, self.cells[right_address].byte)
+            self._write_character(left_address, self.cells[right_address].byte,
+                                  preserve_formatting=True)
 
-        self._write_character(end_address, 0x00)
+        self._write_character(end_address, 0x00, preserve_formatting=True)
 
     def _shift_right(self, start_address, end_address):
         addresses = list(self._get_addresses(start_address, end_address))
 
         for (left_address, right_address) in reversed(list(zip(addresses, addresses[1:]))):
-            self._write_character(right_address, self.cells[left_address].byte)
+            self._write_character(right_address, self.cells[left_address].byte,
+                                  preserve_formatting=True)
 
-        self._write_character(start_address, 0x00)
+        self._write_character(start_address, 0x00, preserve_formatting=True)
 
     def _query(self):
         self.logger.debug('Query')
