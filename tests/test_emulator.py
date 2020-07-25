@@ -247,13 +247,19 @@ class UpdateTestCase(unittest.TestCase):
         # Assert
         self.stream.write.assert_called_with(bytes.fromhex('7dc84d11c7f4c1c2c3c4c511c8c8c6c7c8c9d1114be4e7e7e7e7e7114bf8e7e7e7e7e7114c4ce7e7e7e7e7'))
 
-    def test_erase_write_alternate(self):
+    def test_erase_write_alternate_screen1(self):
         # Arrange
-        self.stream.read = Mock(return_value=bytes.fromhex('0d'))
+        self.stream.read = Mock(return_value=bytes([0x0d, *SCREEN1[1:]]))
 
-        # Act and assert
-        with self.assertRaises(NotImplementedError):
-            self.emulator.update()
+        # Act
+        self.emulator.update()
+
+        # Assert
+        self.assertEqual(self.emulator.cursor_address, 504)
+
+        fields = self.emulator.get_fields()
+
+        self.assertEqual(len(fields), 13)
 
     def test_read_modified_all(self):
         # Arrange

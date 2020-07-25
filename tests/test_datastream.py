@@ -183,12 +183,28 @@ class ParseOutboundMessageTestCase(unittest.TestCase):
         self.assertEqual(parse_outbound_message(bytes.fromhex('f6')), (Command.RM,))
 
     def test_erase_write_alternate(self):
-        with self.assertRaises(NotImplementedError):
-            parse_outbound_message(bytes.fromhex('0d'))
+        # Act
+        (command, wcc, orders) = parse_outbound_message(bytes.fromhex('0d c3 11 4b f0 1d f8 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'))
+
+        # Assert
+        self.assertEqual(command, Command.EWA)
+
+        self.assertIsInstance(wcc, WCC)
+        self.assertEqual(wcc.value, 0xc3)
+
+        self.assertEqual([order[0] for order in orders], [Order.SBA, Order.SF, None])
 
     def test_sna_erase_write_alternate(self):
-        with self.assertRaises(NotImplementedError):
-            parse_outbound_message(bytes.fromhex('7e'))
+        # Act
+        (command, wcc, orders) = parse_outbound_message(bytes.fromhex('7e c3 11 4b f0 1d f8 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'))
+
+        # Assert
+        self.assertEqual(command, Command.EWA)
+
+        self.assertIsInstance(wcc, WCC)
+        self.assertEqual(wcc.value, 0xc3)
+
+        self.assertEqual([order[0] for order in orders], [Order.SBA, Order.SF, None])
 
     def test_read_modified_all(self):
         self.assertEqual(parse_outbound_message(bytes.fromhex('0e')), (Command.RMA,))

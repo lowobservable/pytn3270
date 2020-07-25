@@ -143,13 +143,10 @@ def parse_outbound_message(bytes_):
     if command is None:
         raise ValueError(f'Unrecognized command 0x{command_byte:02x}')
 
-    if command == Command.EWA:
-        raise NotImplementedError('EWA command is not supported')
-
     if command == Command.WSF:
         raise NotImplementedError('WSF command is not supported')
 
-    if command in [Command.W, Command.EW]:
+    if command in [Command.W, Command.EW, Command.EWA]:
         # TODO: Validate size.
 
         wcc = WCC(bytes_[1])

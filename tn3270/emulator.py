@@ -75,13 +75,11 @@ class Emulator:
             self._read_buffer()
         elif command == Command.NOP:
             pass
-        elif command == Command.EW:
+        elif command in [Command.EW, Command.EWA]:
             self._erase()
             self._write(*options)
         elif command == Command.RM:
             self._read_modified()
-        elif command == Command.EWA:
-            raise NotImplementedError('EWA command is not supported')
         elif command == Command.RMA:
             self._read_modified(all_=True)
         elif command == Command.EAU:
