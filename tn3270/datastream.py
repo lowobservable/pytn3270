@@ -143,9 +143,6 @@ def parse_outbound_message(bytes_):
     if command is None:
         raise ValueError(f'Unrecognized command 0x{command_byte:02x}')
 
-    if command == Command.WSF:
-        raise NotImplementedError('WSF command is not supported')
-
     if command in [Command.W, Command.EW, Command.EWA]:
         # TODO: Validate size.
 
@@ -153,6 +150,11 @@ def parse_outbound_message(bytes_):
         orders = list(parse_orders(bytes_[2:]))
 
         return (command, wcc, orders)
+
+    if command == Command.WSF:
+        structured_fields = list(parse_outbound_structured_fields(bytes_[1:]))
+
+        return (command, structured_fields)
 
     return (command,)
 
@@ -240,6 +242,49 @@ def parse_orders(bytes_):
 
     if data:
         yield (None, data)
+
+def parse_outbound_structured_fields(bytes_):
+    """Parse structured fields from the host."""
+    index = 0
+
+    while index < len(bytes_):
+        remaining_length = len(bytes_) - index
+
+        if remaining_length < 2:
+            raise Exception('Invalid structured field')
+
+        length = (bytes_[index] << 8) | bytes_[index+1]
+
+        if length == 0:
+            length = remaining_length
+
+        if length < 3:
+            raise Exception(f'Invalid structured field length: {length} must be at least 3')
+
+        if length > remaining_length:
+            raise Exception(f'Invalid structured field length: {length} greater than remaining {remaining_length} bytes')
+
+        id_ = bytes_[index+2]
+
+        data_length = length - 3
+        data = bytes_[index+3:index+3+data_length]
+
+        yield (id_, data)
+
+        index += length
+
+def format_inbound_structured_fields(structured_fields):
+    """Format structured fields for the host."""
+    bytes_ = bytearray([AID.STRUCTURED_FIELD.value])
+
+    for (id_, data) in structured_fields:
+        length = len(data) + 3
+
+        bytes_.extend([(length >> 8) & 0xff, length & 0xff, id_])
+
+        bytes_ += data
+
+    return bytes_
 
 def parse_address(bytes_, size=None):
     """Parse an address."""

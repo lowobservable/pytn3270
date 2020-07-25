@@ -8,7 +8,9 @@ import logging
 
 from .datastream import Command, Order, AID, parse_outbound_message, \
                         format_inbound_read_buffer_message, \
-                        format_inbound_read_modified_message
+                        format_inbound_read_modified_message, \
+                        format_inbound_structured_fields
+from .structured_fields import StructuredField, ReadPartitionType, QueryReply
 from .ebcdic import DUP, FM
 
 class Cell:
@@ -38,7 +40,7 @@ class FieldOverflowOperatorError(OperatorError):
 class Emulator:
     """TN3270 emulator."""
 
-    def __init__(self, stream, rows, columns):
+    def __init__(self, stream, rows, columns, query_callback=None):
         self.logger = logging.getLogger(__name__)
 
         # TODO: Validate that stream has read() and write() methods.
@@ -54,6 +56,8 @@ class Emulator:
 
         self.current_aid = AID.NONE
         self.keyboard_locked = True
+
+        self._query_callback = query_callback
 
     def update(self, **kwargs):
         """Read a outbound message and execute command."""
@@ -85,7 +89,7 @@ class Emulator:
         elif command == Command.EAU:
             self._erase_all_unprotected()
         elif command == Command.WSF:
-            raise NotImplementedError('WSF command is not supported')
+            self._write_structured_fields(*options)
 
         return True
 
@@ -388,6 +392,17 @@ class Emulator:
         if wcc.alarm:
             self.alarm()
 
+    def _write_structured_fields(self, structured_fields):
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug('Write Structured Fields')
+            self.logger.debug(f'\tFields = {structured_fields}')
+
+        for (id_, data) in structured_fields:
+            if id_ == StructuredField.READ_PARTITION:
+                self._read_partition(data)
+            else:
+                raise NotImplementedError(f'Structured field 0x{id_:02x} not supported')
+
     def _clear(self):
         for address in range(self.rows * self.columns):
             self._write_character(address, 0x00)
@@ -442,6 +457,22 @@ class Emulator:
             self.logger.debug(f'\tData   = {bytes_}')
 
         self.stream.write(bytes_)
+
+    def _read_partition(self, data):
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug('Read Partition (Structured Field)')
+            self.logger.debug(f'\tData = {data}')
+
+        partition = data[0]
+        type_ = data[1]
+
+        if type_ == ReadPartitionType.QUERY:
+            if partition != 0xff:
+                self.logger.warning(f'Partition should be 0xff for query, received 0x{partition:02x}')
+
+            self._query()
+        else:
+            raise NotImplementedError(f'Read partition type 0x{type_:02x} not supported')
 
     def _input(self, byte, insert=False, move=True):
         if isinstance(self.cells[self.cursor_address], AttributeCell):
@@ -583,3 +614,22 @@ class Emulator:
             self._write_character(right_address, self.cells[left_address].byte)
 
         self._write_character(start_address, 0x00)
+
+    def _query(self):
+        self.logger.debug('Query')
+
+        replies = self._query_callback(self) if self._query_callback is not None else []
+
+        # Generate the summary reply.
+        structured_fields = [(StructuredField.QUERY_REPLY, bytes([QueryReply.SUMMARY, QueryReply.SUMMARY] + [reply for (reply, _) in replies]))]
+
+        # Append the query replies.
+        for (reply, data) in replies:
+            structured_fields.append((StructuredField.QUERY_REPLY, bytes([reply]) + (data if data is not None else [])))
+
+        bytes_ = format_inbound_structured_fields(structured_fields)
+
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug(f'\tData = {bytes_}')
+
+        self.stream.write(bytes_)

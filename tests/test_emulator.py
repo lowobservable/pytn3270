@@ -323,13 +323,15 @@ class UpdateTestCase(unittest.TestCase):
         self.assertEqual(self.emulator.current_aid, AID.NONE)
         self.assertFalse(self.emulator.keyboard_locked)
 
-    def test_write_structured_field(self):
+    def test_write_structured_field_read_partition_query(self):
         # Arrange
-        self.stream.read = Mock(return_value=bytes.fromhex('11'))
+        self.stream.read = Mock(return_value=bytes.fromhex('11 00 05 01 ff 02'))
 
-        # Act and assert
-        with self.assertRaises(NotImplementedError):
-            self.emulator.update()
+        # Act
+        self.emulator.update()
+
+        # Assert
+        self.stream.write.assert_called_with(bytes.fromhex('88 00 05 81 80 80'))
 
 class AidTestCase(unittest.TestCase):
     def setUp(self):

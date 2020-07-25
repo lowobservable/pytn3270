@@ -2,7 +2,7 @@ import unittest
 
 import context
 
-from tn3270.datastream import Command, Order, AID, WCC, Attribute, parse_outbound_message, format_inbound_read_modified_message, parse_orders, parse_address, format_address
+from tn3270.datastream import Command, Order, AID, WCC, Attribute, parse_outbound_message, format_inbound_read_modified_message, parse_orders, parse_outbound_structured_fields, format_inbound_structured_fields, parse_address, format_address
 
 class WCCTestCase(unittest.TestCase):
     def test_reset(self):
@@ -219,12 +219,22 @@ class ParseOutboundMessageTestCase(unittest.TestCase):
         self.assertEqual(parse_outbound_message(bytes.fromhex('6f')), (Command.EAU,))
 
     def test_write_structured_field(self):
-        with self.assertRaises(NotImplementedError):
-            parse_outbound_message(bytes.fromhex('11'))
+        # Act
+        (command, structured_fields) = parse_outbound_message(bytes.fromhex('11 00 07 01 01 02 03 04 00 00 02 05 06 07'))
+
+        # Assert
+        self.assertEqual(command, Command.WSF)
+
+        self.assertEqual([field[0] for field in structured_fields], [1, 2])
 
     def test_sna_write_structured_field(self):
-        with self.assertRaises(NotImplementedError):
-            parse_outbound_message(bytes.fromhex('f3'))
+        # Act
+        (command, structured_fields) = parse_outbound_message(bytes.fromhex('f3 00 07 01 01 02 03 04 00 00 02 05 06 07'))
+
+        # Assert
+        self.assertEqual(command, Command.WSF)
+
+        self.assertEqual([field[0] for field in structured_fields], [1, 2])
 
     def test_unrecognized_command(self):
         with self.assertRaisesRegex(ValueError, 'Unrecognized command 0x99'):
@@ -311,6 +321,30 @@ class ParseOrdersTestCase(unittest.TestCase):
 
     def test_repeat_to_address(self):
         self.assertEqual(list(parse_orders(bytes.fromhex('3c 4b f0 c1'))), [(Order.RA, [752, 0xc1])])
+
+class ParseOutboundStructuredFieldsTestCase(unittest.TestCase):
+    def test(self):
+        self.assertEqual(list(parse_outbound_structured_fields(bytes.fromhex('00 07 01 01 02 03 04 00 00 02 05 06 07'))), [(1, bytes.fromhex('01 02 03 04')), (2, bytes.fromhex('05 06 07'))])
+
+    def test_invalid_field(self):
+        for bytes_ in [bytes.fromhex('01'), bytes.fromhex('01 02')]:
+            with self.subTest(bytes_=bytes_):
+                with self.assertRaises(Exception):
+                    list(parse_outbound_structured_fields(bytes_))
+
+    def test_invalid_length(self):
+        for bytes_ in [bytes.fromhex('00 02 01 01'), bytes.fromhex('00 05 01 01')]:
+            with self.subTest(bytes_=bytes_):
+                with self.assertRaises(Exception):
+                    list(parse_outbound_structured_fields(bytes_))
+
+class FormatInboundStructuredFieldsTestCase(unittest.TestCase):
+    def test(self):
+        # Act
+        bytes_ = format_inbound_structured_fields([(0x81, bytes.fromhex('80 80'))])
+
+        # Assert
+        self.assertEqual(bytes_, bytes.fromhex('88 00 05 81 80 80'))
 
 class ParseAddressTestCase(unittest.TestCase):
     def test_12_bit_address_with_01_prefix(self):
