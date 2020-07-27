@@ -6,7 +6,7 @@ tn3270.emulator
 from itertools import chain
 import logging
 
-from .datastream import Command, Order, AID, parse_outbound_message, \
+from .datastream import Command, WCC, Order, AID, parse_outbound_message, \
                         format_inbound_read_buffer_message, \
                         format_inbound_read_modified_message, \
                         format_inbound_structured_fields
@@ -438,17 +438,6 @@ class Emulator:
         if wcc.alarm:
             self.alarm()
 
-    def _write_structured_fields(self, structured_fields):
-        if self.logger.isEnabledFor(logging.DEBUG):
-            self.logger.debug('Write Structured Fields')
-            self.logger.debug(f'\tFields = {structured_fields}')
-
-        for (id_, data) in structured_fields:
-            if id_ == StructuredField.READ_PARTITION:
-                self._read_partition(data)
-            else:
-                raise NotImplementedError(f'Structured field 0x{id_:02x} not supported')
-
     def _clear(self):
         for address in range(self.rows * self.columns):
             self._write_character(address, 0x00, None)
@@ -503,22 +492,6 @@ class Emulator:
             self.logger.debug(f'\tData   = {bytes_}')
 
         self.stream.write(bytes_)
-
-    def _read_partition(self, data):
-        if self.logger.isEnabledFor(logging.DEBUG):
-            self.logger.debug('Read Partition (Structured Field)')
-            self.logger.debug(f'\tData = {data}')
-
-        partition = data[0]
-        type_ = data[1]
-
-        if type_ == ReadPartitionType.QUERY:
-            if partition != 0xff:
-                self.logger.warning(f'Partition should be 0xff for query, received 0x{partition:02x}')
-
-            self._query()
-        else:
-            raise NotImplementedError(f'Read partition type 0x{type_:02x} not supported')
 
     def _input(self, byte, insert=False, move=True):
         if isinstance(self.cells[self.cursor_address], AttributeCell):
@@ -670,6 +643,56 @@ class Emulator:
                                   preserve_formatting=True)
 
         self._write_character(start_address, 0x00, preserve_formatting=True)
+
+    def _write_structured_fields(self, structured_fields):
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug('Write Structured Fields')
+            self.logger.debug(f'\tFields = {structured_fields}')
+
+        for (id_, data) in structured_fields:
+            if id_ == StructuredField.READ_PARTITION:
+                self._read_partition(data)
+            elif id_ == StructuredField.OUTBOUND_3270DS:
+                self._outbound_3270ds(data)
+            else:
+                raise NotImplementedError(f'Structured field 0x{id_:02x} not supported')
+
+    def _read_partition(self, data):
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug('Read Partition (Structured Field)')
+            self.logger.debug(f'\tData = {data}')
+
+        partition = data[0]
+        type_ = data[1]
+
+        if type_ == ReadPartitionType.QUERY:
+            if partition != 0xff:
+                self.logger.warning(f'Partition should be 0xff for query, received 0x{partition:02x}')
+
+            self._query()
+        else:
+            raise NotImplementedError(f'Read partition type 0x{type_:02x} not supported')
+
+    def _outbound_3270ds(self, data):
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug('Outbound 3270 DS (Structured Field)')
+            self.logger.debug(f'\tData = {data}')
+
+        partition = data[0]
+        command = data[1]
+
+        if partition != 0x00:
+            self.logger.warning(f'Partition 0x{partition:02x} not supported')
+
+        if command == 0xf1:
+            self._write(WCC(data[2]), data[3:])
+        elif command in [0xf5, 0x7e]:
+            self._erase()
+            self._write(WCC(data[2]), data[3:])
+        elif command == 0x6f:
+            self._erase_all_unprotected()
+        else:
+            raise NotImplementedError(f'Outbound 3270 DS command 0x{command:02x} not supported')
 
     def _query(self):
         self.logger.debug('Query')
