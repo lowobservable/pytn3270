@@ -10,7 +10,8 @@ from .datastream import Command, WCC, Order, AID, parse_outbound_message, \
                         format_inbound_read_buffer_message, \
                         format_inbound_read_modified_message, \
                         format_inbound_structured_fields
-from .attributes import HighlightExtendedAttribute, ForegroundColorExtendedAttribute
+from .attributes import Attribute, HighlightExtendedAttribute, \
+                        ForegroundColorExtendedAttribute
 from .structured_fields import StructuredField, ReadPartitionType, QueryReply
 from .ebcdic import DUP, FM
 
@@ -413,7 +414,12 @@ class Emulator:
             elif order == Order.SA:
                 formatting = CellFormatting(formatting, extended_attributes=[data[0]])
             elif order == Order.SFE:
-                raise NotImplementedError('SFE order is not supported')
+                # TODO: Confirm that formatting should be reset here
+                formatting = CellFormatting(None, extended_attributes=data[1])
+
+                self._write_attribute(self.address, data[0] or Attribute(0), formatting)
+
+                self.address = self._wrap_address(self.address + 1)
             elif order == Order.MF:
                 raise NotImplementedError('MF order is not supported')
             elif order == Order.RA:

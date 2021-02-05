@@ -202,7 +202,22 @@ def parse_orders(bytes_):
                 parameters = [parse_extended_attribute(bytes_[index:index+2])]
                 index += 2
             elif order == Order.SFE:
-                raise NotImplementedError('SFE order is not supported')
+                # TODO: validate size
+                attribute = None
+                extended_attributes = []
+
+                count = bytes_[index]
+
+                index += 1
+
+                for attribute_index in range(index, index + (count * 2), 2):
+                    if bytes_[attribute_index] == 0xc0:
+                        attribute = Attribute(bytes_[attribute_index+1])
+                    else:
+                        extended_attributes.append(parse_extended_attribute(bytes_[attribute_index:attribute_index+2]))
+
+                parameters = [attribute, extended_attributes]
+                index += count * 2
             elif order == Order.MF:
                 raise NotImplementedError('MF order is not supported')
             elif order == Order.RA:

@@ -246,8 +246,21 @@ class ParseOrdersTestCase(unittest.TestCase):
         self.assertTrue(orders[0][1][0].reverse)
 
     def test_start_field_extended(self):
-        with self.assertRaises(NotImplementedError):
-            list(parse_orders(bytes.fromhex('29')))
+        # Act
+        orders = list(parse_orders(bytes.fromhex('29 02 c0 60 42 f1')))
+
+        # Assert
+        self.assertEqual(orders[0][0], Order.SFE)
+
+        self.assertIsInstance(orders[0][1][0], Attribute)
+        self.assertEqual(orders[0][1][0].value, 0x60)
+
+        extended_attributes = orders[0][1][1]
+
+        self.assertEqual(len(extended_attributes), 1)
+
+        self.assertIsInstance(extended_attributes[0], ForegroundColorExtendedAttribute)
+        self.assertEqual(extended_attributes[0].color, 0xf1)
 
     def test_modify_field(self):
         with self.assertRaises(NotImplementedError):
