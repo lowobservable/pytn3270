@@ -385,7 +385,10 @@ class Emulator:
             elif order == Order.GE:
                 raise NotImplementedError('GE order is not supported')
             elif order == Order.SBA:
-                self.address = data[0]
+                if data[0] >= (self.rows * self.columns):
+                    self.logger.warning(f'Address {data[0]} is out of range')
+                else:
+                    self.address = data[0]
             elif order == Order.EUA:
                 stop_address = data[0]
 
