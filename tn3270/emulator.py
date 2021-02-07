@@ -4,6 +4,7 @@ tn3270.emulator
 """
 
 from itertools import chain
+import struct
 import logging
 
 from .datastream import Command, WCC, Order, AID, parse_outbound_message, \
@@ -12,7 +13,8 @@ from .datastream import Command, WCC, Order, AID, parse_outbound_message, \
                         format_inbound_structured_fields
 from .attributes import Attribute, HighlightExtendedAttribute, \
                         ForegroundColorExtendedAttribute
-from .structured_fields import StructuredField, ReadPartitionType, QueryReply
+from .structured_fields import StructuredField, ReadPartitionType, \
+                               QueryListRequestType, QueryCode
 from .ebcdic import DUP, FM
 
 class CellFormatting:
@@ -83,7 +85,7 @@ class FieldOverflowOperatorError(OperatorError):
 class Emulator:
     """TN3270 emulator."""
 
-    def __init__(self, stream, rows, columns, query_callback=None):
+    def __init__(self, stream, rows, columns):
         self.logger = logging.getLogger(__name__)
 
         # TODO: Validate that stream has read() and write() methods.
@@ -99,8 +101,6 @@ class Emulator:
 
         self.current_aid = AID.NONE
         self.keyboard_locked = True
-
-        self._query_callback = query_callback
 
     def update(self, **kwargs):
         """Read a outbound message and execute command."""
@@ -679,6 +679,18 @@ class Emulator:
                 self.logger.warning(f'Partition should be 0xff for query, received 0x{partition:02x}')
 
             self._query()
+        elif type_ == ReadPartitionType.QUERY_LIST:
+            if partition != 0xff:
+                self.logger.warning(f'Partition should be 0xff for query list, received 0x{partition:02x}')
+
+            request_type = QueryListRequestType(data[2])
+
+            request_codes = None
+
+            if request_type != QueryListRequestType.ALL:
+                request_codes = [QueryCode(code) for code in data[3:]]
+
+            self._query(request_type, request_codes)
         else:
             raise NotImplementedError(f'Read partition type 0x{type_:02x} not supported')
 
@@ -703,17 +715,50 @@ class Emulator:
         else:
             raise NotImplementedError(f'Outbound 3270 DS command 0x{command:02x} not supported')
 
-    def _query(self):
-        self.logger.debug('Query')
+    def _query(self, request_type=None, request_codes=None):
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug('Query')
+            self.logger.debug(f'\tRequest Type  = {request_type}')
+            self.logger.debug(f'\tRequest Codes = {request_codes}')
 
-        replies = self._query_callback(self) if self._query_callback is not None else []
+        codes = [
+            QueryCode.USABLE_AREA, QueryCode.ALPHANUMERIC_PARTITIONS,
+            QueryCode.REPLY_MODES, QueryCode.IMPLICIT_PARTITIONS
+        ]
+
+        if request_type == QueryListRequestType.LIST:
+            codes = request_codes
+        elif request_type == QueryListRequestType.EQUIVALENT_AND_LIST:
+            if request_codes is not None:
+                codes = set(codes + request_codes)
+
+        # Generate the replies.
+        replies = []
+
+        for code in codes:
+            reply = None
+
+            if code == QueryCode.USABLE_AREA:
+                reply = _query_usable_area(self.rows, self.columns)
+            elif code == QueryCode.ALPHANUMERIC_PARTITIONS:
+                reply = _query_alphanumeric_partitions(self.rows, self.columns)
+            elif code == QueryCode.REPLY_MODES:
+                reply = _query_reply_modes()
+            elif code == QueryCode.IMPLICIT_PARTITIONS:
+                reply = _query_implicit_partitions(self.rows, self.columns)
+
+            if reply is not None:
+                replies.append((code, reply))
+
+        if request_type == QueryListRequestType.LIST and not replies:
+            replies.append((QueryCode.NULL, None))
 
         # Generate the summary reply.
-        structured_fields = [(StructuredField.QUERY_REPLY, bytes([QueryReply.SUMMARY, QueryReply.SUMMARY] + [reply for (reply, _) in replies]))]
+        structured_fields = [(StructuredField.QUERY_REPLY, bytes([QueryCode.SUMMARY, QueryCode.SUMMARY] + [code for (code, _) in replies]))]
 
         # Append the query replies.
-        for (reply, data) in replies:
-            structured_fields.append((StructuredField.QUERY_REPLY, bytes([reply]) + (data if data is not None else [])))
+        for (code, data) in replies:
+            structured_fields.append((StructuredField.QUERY_REPLY, bytes([code]) + (data if data is not None else bytes([]))))
 
         bytes_ = format_inbound_structured_fields(structured_fields)
 
@@ -721,3 +766,43 @@ class Emulator:
             self.logger.debug(f'\tData = {bytes_}')
 
         self.stream.write(bytes_)
+
+def _query_usable_area(rows, columns):
+    return struct.pack('>BBHHBHHHHBBH',
+        0x01,           # 12/14-bit addressing allowed
+        0x00,           # Cell units, no special features
+        columns,        # Width in cells
+        rows,           # Width in rows
+        0x01,           # Millimeters
+        10,             # X resolution fraction numerator
+        741,            # X resolution fraction denominator
+        2,              # Y resolution fraction numerator
+        111,            # Y resolution fraction denominator
+        9,              # Width of cell in millimeters
+        12,             # Height of cell in millimeters
+        rows * columns  # Buffer size
+    )
+
+def _query_alphanumeric_partitions(rows, columns):
+    return struct.pack('>BHB',
+        1,              # One partition
+        rows * columns, # Buffer size
+        0x00            # No special features
+    )
+
+def _query_reply_modes():
+    return struct.pack('>B',
+        0x00            # Field mode
+    )
+
+def _query_implicit_partitions(rows, columns):
+    return struct.pack('>HBBBHHHH',
+        0x0000,         # Flags
+        0x0b,           # Length
+        0x01,           # Size
+        0x00,           # Flags
+        80,             # Width
+        24,             # Height
+        columns,        # Width
+        rows            # Height
+    )
