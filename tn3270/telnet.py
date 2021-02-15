@@ -61,13 +61,12 @@ class Telnet:
 
         self.socket = None
 
-    def read(self, timeout=None):
-        """Read a record."""
-        if self.eof and not self.records:
-            raise EOFError
+    def read_multiple(self, limit=None, timeout=None):
+        """Read multiple records."""
+        records = self._read_multiple_buffered(limit)
 
-        if self.records:
-            return self.records.pop(0)
+        if records:
+            return records
 
         self._read_while(lambda: not self.eof and not self.records, timeout)
 
@@ -76,13 +75,7 @@ class Telnet:
         if self.eof and self.buffer:
             self.logger.warning('EOF encountered with partial record')
 
-        if not self.records:
-            if self.eof:
-                raise EOFError
-
-            return None
-
-        return self.records.pop(0)
+        return self._read_multiple_buffered(limit)
 
     def write(self, frame):
         """Write a record."""
@@ -125,6 +118,21 @@ class Telnet:
 
                 if remaining_timeout < 0:
                     break
+
+    def _read_multiple_buffered(self, limit=None):
+        if self.eof and not self.records:
+            raise EOFError
+
+        if not self.records:
+            return []
+
+        count = limit if limit is not None else len(self.records)
+
+        records = self.records[:count]
+
+        self.records = self.records[count:]
+
+        return records
 
     def _feed(self, byte):
         if not self.iac_buffer:

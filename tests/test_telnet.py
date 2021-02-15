@@ -65,7 +65,7 @@ class OpenTestCase(unittest.TestCase):
         with self.assertRaisesRegex(Exception, 'Unable to negotiate 3270 mode'):
             self.telnet.open('mainframe', 23)
 
-class ReadTestCase(unittest.TestCase):
+class ReadMultipleTestCase(unittest.TestCase):
     def setUp(self):
         self.telnet = Telnet('IBM-3278-2')
 
@@ -84,15 +84,21 @@ class ReadTestCase(unittest.TestCase):
         self.telnet.socket.recv = Mock(return_value=bytes.fromhex('01 02 03 ff ef 04 05 06 ff ef'))
 
         # Act and assert
-        self.assertEqual(self.telnet.read(), bytes.fromhex('01 02 03'))
-        self.assertEqual(self.telnet.read(), bytes.fromhex('04 05 06'))
+        self.assertEqual(self.telnet.read_multiple(), [bytes.fromhex('01 02 03'), bytes.fromhex('04 05 06')])
 
     def test_single_record_spans_multiple_recv(self):
         # Arrange
         self.telnet.socket.recv = Mock(side_effect=[bytes.fromhex('01 02 03'), bytes.fromhex('04 05 06 ff ef')])
 
         # Act and assert
-        self.assertEqual(self.telnet.read(), bytes.fromhex('01 02 03 04 05 06'))
+        self.assertEqual(self.telnet.read_multiple(), [bytes.fromhex('01 02 03 04 05 06')])
+
+    def test_limit(self):
+        # Arrange
+        self.telnet.socket.recv = Mock(return_value=bytes.fromhex('01 02 03 ff ef 04 05 06 ff ef'))
+
+        # Act and assert
+        self.assertEqual(self.telnet.read_multiple(limit=1), [bytes.fromhex('01 02 03')])
 
     def test_timeout(self):
         # Arrange
@@ -104,7 +110,7 @@ class ReadTestCase(unittest.TestCase):
         with patch('time.perf_counter') as perf_counter_mock:
             perf_counter_mock.side_effect=[1, 3, 3, 7]
 
-            self.telnet.read(timeout=5)
+            self.telnet.read_multiple(timeout=5)
 
             self.assertEqual(self.select_mock.call_count, 2)
 
@@ -119,7 +125,7 @@ class ReadTestCase(unittest.TestCase):
 
         # Act and assert
         with self.assertRaises(EOFError):
-            self.telnet.read()
+            self.telnet.read_multiple()
 
         self.assertTrue(self.telnet.eof)
 

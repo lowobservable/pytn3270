@@ -33,14 +33,14 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_no_message(self):
         # Arrange
-        self.stream.read = Mock(return_value=None)
+        self.stream.read_multiple = Mock(return_value=[])
 
         # Act and assert
         self.assertFalse(self.emulator.update())
 
     def test_write(self):
         # Arrange
-        self.stream.read = Mock(return_value=bytes.fromhex('01 c3 11 4b f0 1d f8 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'))
+        self.stream.read_multiple = Mock(return_value=[bytes.fromhex('01 c3 11 4b f0 1d f8 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4')])
 
         # Act and assert
         self.assertTrue(self.emulator.update())
@@ -50,7 +50,7 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_write_wrap(self):
         # Arrange
-        self.stream.read = Mock(return_value=bytes.fromhex('01 c3 11 07 7c c1 c2 c3 c4 c5 c6 c7 c8'))
+        self.stream.read_multiple = Mock(return_value=[bytes.fromhex('01 c3 11 07 7c c1 c2 c3 c4 c5 c6 c7 c8')])
 
         # Act and assert
         self.assertTrue(self.emulator.update())
@@ -62,7 +62,7 @@ class UpdateTestCase(unittest.TestCase):
         # Arrange
         self.emulator.alarm = Mock()
 
-        self.stream.read = Mock(return_value=bytes.fromhex('01 c7'))
+        self.stream.read_multiple = Mock(return_value=[bytes.fromhex('01 c7')])
 
         # Act
         self.emulator.update()
@@ -72,7 +72,7 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_read_buffer(self):
         # Arrange
-        self.stream.read = Mock(side_effect=[SCREEN1, bytes.fromhex('02')])
+        self.stream.read_multiple = Mock(side_effect=[[SCREEN1], [bytes.fromhex('02')]])
 
         self.emulator.update()
 
@@ -101,14 +101,14 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_nop(self):
         # Arrange
-        self.stream.read = Mock(return_value=bytes.fromhex('03'))
+        self.stream.read_multiple = Mock(return_value=[bytes.fromhex('03')])
 
         # Act
         self.emulator.update()
 
     def test_erase_write_screen1(self):
         # Arrange
-        self.stream.read = Mock(return_value=SCREEN1)
+        self.stream.read_multiple = Mock(return_value=[SCREEN1])
 
         # Act
         self.emulator.update()
@@ -206,7 +206,7 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_erase_write_screen2(self):
         # Arrange
-        self.stream.read = Mock(return_value=SCREEN2)
+        self.stream.read_multiple = Mock(return_value=[SCREEN2])
 
         # Act
         self.emulator.update()
@@ -226,7 +226,7 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_read_modified(self):
         # Arrange
-        self.stream.read = Mock(side_effect=[SCREEN1, bytes.fromhex('06')])
+        self.stream.read_multiple = Mock(side_effect=[[SCREEN1], [bytes.fromhex('06')]])
 
         self.emulator.update()
 
@@ -249,7 +249,7 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_erase_write_alternate_screen1(self):
         # Arrange
-        self.stream.read = Mock(return_value=bytes([0x0d, *SCREEN1[1:]]))
+        self.stream.read_multiple = Mock(return_value=[bytes([0x0d, *SCREEN1[1:]])])
 
         # Act
         self.emulator.update()
@@ -263,7 +263,7 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_read_modified_all(self):
         # Arrange
-        self.stream.read = Mock(side_effect=[SCREEN1, bytes.fromhex('0e')])
+        self.stream.read_multiple = Mock(side_effect=[[SCREEN1], [bytes.fromhex('0e')]])
 
         self.emulator.update()
 
@@ -286,7 +286,7 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_erase_all_unprotected(self):
         # Arrange
-        self.stream.read = Mock(side_effect=[SCREEN1, bytes.fromhex('0f')])
+        self.stream.read_multiple = Mock(side_effect=[[SCREEN1], [bytes.fromhex('0f')]])
 
         self.emulator.update()
 
@@ -325,7 +325,7 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_write_structured_field_read_partition_query(self):
         # Arrange
-        self.stream.read = Mock(return_value=bytes.fromhex('11 00 05 01 ff 02'))
+        self.stream.read_multiple = Mock(return_value=[bytes.fromhex('11 00 05 01 ff 02')])
 
         # Act
         self.emulator.update()
@@ -343,7 +343,7 @@ class AidTestCase(unittest.TestCase):
 
     def test_screen1_short_read(self):
         # Arrange
-        self.stream.read = Mock(return_value=SCREEN1)
+        self.stream.read_multiple = Mock(return_value=[SCREEN1])
 
         self.emulator.update()
 
@@ -362,7 +362,7 @@ class AidTestCase(unittest.TestCase):
 
     def test_screen1_long_read(self):
         # Arrange
-        self.stream.read = Mock(return_value=SCREEN1)
+        self.stream.read_multiple = Mock(return_value=[SCREEN1])
 
         self.emulator.update()
 
@@ -381,7 +381,7 @@ class AidTestCase(unittest.TestCase):
 
     def test_screen2_long_read(self):
         # Arrange
-        self.stream.read = Mock(return_value=SCREEN2)
+        self.stream.read_multiple = Mock(return_value=[SCREEN2])
 
         self.emulator.update()
 
@@ -400,7 +400,7 @@ class AidTestCase(unittest.TestCase):
 
     def test_clear(self):
         # Arrange
-        self.stream.read = Mock(return_value=SCREEN1)
+        self.stream.read_multiple = Mock(return_value=[SCREEN1])
 
         self.emulator.update()
 
@@ -427,7 +427,7 @@ class TabTestCase(unittest.TestCase):
     def setUp(self):
         self.stream = Mock()
 
-        self.stream.read = Mock(return_value=SCREEN1)
+        self.stream.read_multiple = Mock(return_value=[SCREEN1])
 
         self.emulator = Emulator(self.stream, 24, 80)
 
@@ -515,7 +515,7 @@ class NewlineTestCase(unittest.TestCase):
     def setUp(self):
         self.stream = Mock()
 
-        self.stream.read = Mock(return_value=SCREEN3)
+        self.stream.read_multiple = Mock(return_value=[SCREEN3])
 
         self.emulator = Emulator(self.stream, 24, 80)
 
@@ -571,7 +571,7 @@ class HomeTestCase(unittest.TestCase):
     def setUp(self):
         self.stream = Mock()
 
-        self.stream.read = Mock(return_value=SCREEN1)
+        self.stream.read_multiple = Mock(return_value=[SCREEN1])
 
         self.emulator = Emulator(self.stream, 24, 80)
 
@@ -737,7 +737,7 @@ class InputTestCase(unittest.TestCase):
 
         self.emulator = Emulator(self.stream, 24, 80)
 
-        self.stream.read = Mock(return_value=SCREEN1)
+        self.stream.read_multiple = Mock(return_value=[SCREEN1])
 
         self.emulator.update()
 
@@ -803,7 +803,7 @@ class InputTestCase(unittest.TestCase):
 
         self.emulator = Emulator(self.stream, 24, 80)
 
-        self.stream.read = Mock(return_value=SCREEN2)
+        self.stream.read_multiple = Mock(return_value=[SCREEN2])
 
         self.emulator.update()
 
@@ -877,7 +877,7 @@ class DupTestCase(unittest.TestCase):
 
         self.emulator = Emulator(self.stream, 24, 80)
 
-        self.stream.read = Mock(return_value=SCREEN1)
+        self.stream.read_multiple = Mock(return_value=[SCREEN1])
 
         self.emulator.update()
 
@@ -915,7 +915,7 @@ class BackspaceTestCase(unittest.TestCase):
 
         self.emulator = Emulator(self.stream, 24, 80)
 
-        self.stream.read = Mock(return_value=SCREEN1)
+        self.stream.read_multiple = Mock(return_value=[SCREEN1])
 
         self.emulator.update()
 
@@ -999,7 +999,7 @@ class DeleteTestCase(unittest.TestCase):
 
         self.emulator = Emulator(self.stream, 24, 80)
 
-        self.stream.read = Mock(return_value=SCREEN1)
+        self.stream.read_multiple = Mock(return_value=[SCREEN1])
 
         self.emulator.update()
 
@@ -1069,7 +1069,7 @@ class EraseEndOfFieldTestCase(unittest.TestCase):
 
         self.emulator = Emulator(self.stream, 24, 80)
 
-        self.stream.read = Mock(return_value=SCREEN1)
+        self.stream.read_multiple = Mock(return_value=[SCREEN1])
 
         self.emulator.update()
 
@@ -1138,7 +1138,7 @@ class EraseInputTestCase(unittest.TestCase):
 
         emulator = Emulator(stream, 24, 80)
 
-        stream.read = Mock(return_value=SCREEN1)
+        stream.read_multiple = Mock(return_value=[SCREEN1])
 
         emulator.update()
 

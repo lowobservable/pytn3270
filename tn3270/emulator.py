@@ -88,7 +88,7 @@ class Emulator:
     def __init__(self, stream, rows, columns):
         self.logger = logging.getLogger(__name__)
 
-        # TODO: Validate that stream has read() and write() methods.
+        # TODO: Validate that stream has read_multiple() and write() methods.
         self.stream = stream
         self.rows = rows
         self.columns = columns
@@ -103,36 +103,16 @@ class Emulator:
         self.keyboard_locked = True
 
     def update(self, **kwargs):
-        """Read a outbound message and execute command."""
-        bytes_ = self.stream.read(**kwargs)
+        """Read and execute outbound messages."""
+        records = self.stream.read_multiple(**kwargs)
 
-        if bytes_ is None:
+        if not records:
             return False
 
-        (command, *options) = parse_outbound_message(bytes_)
+        for bytes_ in records:
+            (command, *options) = parse_outbound_message(bytes_)
 
-        if self.logger.isEnabledFor(logging.DEBUG):
-            self.logger.debug('Update')
-            self.logger.debug(f'\tData    = {bytes_}')
-            self.logger.debug(f'\tCommand = {command}')
-
-        if command == Command.W:
-            self._write(*options)
-        elif command == Command.RB:
-            self._read_buffer()
-        elif command == Command.NOP:
-            pass
-        elif command in [Command.EW, Command.EWA]:
-            self._erase()
-            self._write(*options)
-        elif command == Command.RM:
-            self._read_modified()
-        elif command == Command.RMA:
-            self._read_modified(all_=True)
-        elif command == Command.EAU:
-            self._erase_all_unprotected()
-        elif command == Command.WSF:
-            self._write_structured_fields(*options)
+            self._execute(command, *options)
 
         return True
 
@@ -337,6 +317,30 @@ class Emulator:
     def alarm(self):
         """Alarm stub."""
         pass
+
+    def _execute(self, command, *options):
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug('Execute')
+            self.logger.debug(f'\tData    = {bytes_}')
+            self.logger.debug(f'\tCommand = {command}')
+
+        if command == Command.W:
+            self._write(*options)
+        elif command == Command.RB:
+            self._read_buffer()
+        elif command == Command.NOP:
+            pass
+        elif command in [Command.EW, Command.EWA]:
+            self._erase()
+            self._write(*options)
+        elif command == Command.RM:
+            self._read_modified()
+        elif command == Command.RMA:
+            self._read_modified(all_=True)
+        elif command == Command.EAU:
+            self._erase_all_unprotected()
+        elif command == Command.WSF:
+            self._write_structured_fields(*options)
 
     def _erase(self):
         self.logger.debug('Erase')
