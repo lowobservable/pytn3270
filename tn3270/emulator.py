@@ -383,10 +383,11 @@ class Emulator:
                     self.logger.debug(f'\t\tParameters = {data}')
 
             if order == Order.PT:
-                # TODO: PT is more complex to implement that simply duplicating the
-                # behavior of tab() - how it behaves differs based on what command it
-                # follows.
-                raise NotImplementedError('PT order is not supported')
+                # TODO: Implement additional PT cases
+                if isinstance(self.cells[self.address], AttributeCell) and not self.cells[self.address].attribute.protected:
+                    self.address = self._wrap_address(self.address + 1)
+                else:
+                    raise NotImplementedError('PT order is not fully supported')
             elif order == Order.GE:
                 raise NotImplementedError('GE order is not supported')
             elif order == Order.SBA:
