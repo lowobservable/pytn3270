@@ -3,6 +3,7 @@ tn3270.emulator
 ~~~~~~~~~~~~~~~
 """
 
+from enum import Enum
 from itertools import chain
 import struct
 import logging
@@ -16,6 +17,11 @@ from .attributes import Attribute, HighlightExtendedAttribute, \
 from .structured_fields import StructuredField, ReadPartitionType, \
                                QueryListRequestType, QueryCode
 from .ebcdic import DUP, FM
+
+class CharacterSet(Enum):
+    """Display cell character set."""
+
+    GE = 1
 
 class CellFormatting:
     """Display cell formatting."""
@@ -54,7 +60,7 @@ class CellFormatting:
 class Cell:
     """A display cell."""
 
-    def __init__(self, formatting=None):
+    def __init__(self, formatting):
         self.formatting = formatting
 
 class AttributeCell(Cell):
@@ -68,10 +74,11 @@ class AttributeCell(Cell):
 class CharacterCell(Cell):
     """A character display cell."""
 
-    def __init__(self, byte, formatting=None):
+    def __init__(self, byte, character_set=None, formatting=None):
         super().__init__(formatting)
 
         self.byte = byte
+        self.character_set = character_set
 
 class OperatorError(Exception):
     """Operator error."""
@@ -243,7 +250,7 @@ class Emulator:
         (_, end_address, attribute) = self.get_field(self.cursor_address)
 
         for address in self._get_addresses(self.cursor_address, end_address):
-            self._write_character(address, 0x00, preserve_formatting=True)
+            self._write_character(address, 0x00, preserve=True)
 
         attribute.modified = True
 
@@ -251,7 +258,7 @@ class Emulator:
         """Erase input key."""
         for (start_address, end_address, attribute) in self.get_fields():
             for address in self._get_addresses(start_address, end_address):
-                self._write_character(address, 0x00, preserve_formatting=True)
+                self._write_character(address, 0x00, preserve=True)
 
             attribute.modified = False
 
@@ -352,7 +359,7 @@ class Emulator:
 
         for (start_address, end_address, attribute) in self.get_fields():
             for address in self._get_addresses(start_address, end_address):
-                self._write_character(address, 0x00, preserve_formatting=True)
+                self._write_character(address, 0x00, preserve=True)
 
             attribute.modified = False
 
@@ -373,6 +380,7 @@ class Emulator:
                     cell.attribute.modified = False
 
         formatting = None
+        character_set = None
 
         for (order, data) in orders:
             if self.logger.isEnabledFor(logging.DEBUG):
@@ -389,7 +397,9 @@ class Emulator:
                 else:
                     raise NotImplementedError('PT order is not fully supported')
             elif order == Order.GE:
-                raise NotImplementedError('GE order is not supported')
+                self._write_character(self.address, data[0], CharacterSet.GE, formatting)
+
+                self.address = self._wrap_address(self.address + 1)
             elif order == Order.SBA:
                 if data[0] >= (self.rows * self.columns):
                     self.logger.warning(f'Address {data[0]} is out of range')
@@ -405,7 +415,7 @@ class Emulator:
                 unprotected_addresses = self._get_unprotected_addresses()
 
                 for address in unprotected_addresses.intersection(addresses):
-                    self._write_character(address, 0x00, preserve_formatting=True)
+                    self._write_character(address, 0x00, preserve=True)
 
                 self.address = stop_address
             elif order == Order.IC:
@@ -428,7 +438,7 @@ class Emulator:
             elif order == Order.MF:
                 raise NotImplementedError('MF order is not supported')
             elif order == Order.RA:
-                (stop_address, byte) = data
+                (stop_address, byte, is_ge) = data
 
                 # TODO: Validate stop_address is in range...
                 end_address = self._wrap_address(stop_address - 1)
@@ -436,12 +446,12 @@ class Emulator:
                 addresses = self._get_addresses(self.address, end_address)
 
                 for address in addresses:
-                    self._write_character(address, byte, formatting)
+                    self._write_character(address, byte, CharacterSet.GE if is_ge else character_set, formatting)
 
                 self.address = stop_address
             elif order is None:
                 for byte in data:
-                    self._write_character(self.address, byte, formatting)
+                    self._write_character(self.address, byte, character_set, formatting)
 
                     self.address = self._wrap_address(self.address + 1)
 
@@ -454,33 +464,18 @@ class Emulator:
 
     def _clear(self):
         for address in range(self.rows * self.columns):
-            self._write_character(address, 0x00, None)
+            self._write_character(address, 0x00, None, None)
 
         self.address = 0
         self.cursor_address = 0
 
     def _read_buffer(self):
-        orders = []
-
-        data = bytearray()
-
-        for cell in self.cells:
-            if isinstance(cell, AttributeCell):
-                if data:
-                    orders.append((None, data))
-
-                    data = bytearray()
-
-                orders.append((Order.SF, [cell.attribute]))
-            elif isinstance(cell, CharacterCell):
-                data.append(cell.byte)
-
-        if data:
-            orders.append((None, data))
+        orders = self._generate_inbound_orders(0, (self.rows * self.columns) - 1)
 
         if self.logger.isEnabledFor(logging.DEBUG):
             self.logger.debug('Read Buffer')
             self.logger.debug(f'\tAID    = {self.current_aid}')
+            self.logger.debug(f'\tOrders = {orders}')
 
         bytes_ = format_inbound_read_buffer_message(self.current_aid, self.cursor_address, orders)
 
@@ -492,15 +487,20 @@ class Emulator:
     def _read_modified(self, all_=False):
         modified_field_ranges = [(start_address, end_address) for (start_address, end_address, attribute) in self.get_fields() if attribute.modified]
 
-        fields = [(start_address, self.get_bytes(start_address, end_address)) for (start_address, end_address) in modified_field_ranges]
+        orders = []
+
+        for (start_address, end_address) in modified_field_ranges:
+            orders.append((Order.SBA, [start_address]))
+
+            orders.extend(self._generate_inbound_orders(start_address, end_address, filter_null=True))
 
         if self.logger.isEnabledFor(logging.DEBUG):
             self.logger.debug('Read Modified')
             self.logger.debug(f'\tAID    = {self.current_aid}')
-            self.logger.debug(f'\tFields = {fields}')
+            self.logger.debug(f'\tOrders = {orders}')
             self.logger.debug(f'\tAll    = {all_}')
 
-        bytes_ = format_inbound_read_modified_message(self.current_aid, self.cursor_address, fields, all_)
+        bytes_ = format_inbound_read_modified_message(self.current_aid, self.cursor_address, orders, all_)
 
         if self.logger.isEnabledFor(logging.DEBUG):
             self.logger.debug(f'\tData   = {bytes_}')
@@ -529,7 +529,7 @@ class Emulator:
 
             self._shift_right(self.cursor_address, first_null_address)
 
-        self._write_character(self.cursor_address, byte, preserve_formatting=True)
+        self._write_character(self.cursor_address, byte, preserve=True)
 
         attribute.modified = True
 
@@ -602,10 +602,10 @@ class Emulator:
 
         return self._wrap_address(address + 1)
 
-    def _write_attribute(self, index, attribute, formatting=None, preserve_formatting=False):
+    def _write_attribute(self, index, attribute, formatting=None, preserve=False):
         cell = self.cells[index]
 
-        if preserve_formatting:
+        if preserve:
             formatting = cell.formatting
 
         if isinstance(cell, AttributeCell):
@@ -621,20 +621,22 @@ class Emulator:
 
         return True
 
-    def _write_character(self, index, byte, formatting=None, preserve_formatting=False):
+    def _write_character(self, index, byte, character_set=None, formatting=None, preserve=False):
         cell = self.cells[index]
 
-        if preserve_formatting:
+        if preserve:
+            character_set = cell.character_set
             formatting = cell.formatting
 
         if isinstance(cell, CharacterCell):
-            if cell.byte == byte and cell.formatting == formatting:
+            if cell.byte == byte and cell.character_set == character_set and cell.formatting == formatting:
                 return False
 
             cell.byte = byte
+            cell.character_set = character_set
             cell.formatting = formatting
         else:
-            self.cells[index] = CharacterCell(byte, formatting)
+            self.cells[index] = CharacterCell(byte, character_set, formatting)
 
         self.dirty.add(index)
 
@@ -644,19 +646,50 @@ class Emulator:
         addresses = list(self._get_addresses(start_address, end_address))
 
         for (left_address, right_address) in zip(addresses, addresses[1:]):
-            self._write_character(left_address, self.cells[right_address].byte,
-                                  preserve_formatting=True)
+            self._write_character(left_address, self.cells[right_address].byte, preserve=True)
 
-        self._write_character(end_address, 0x00, preserve_formatting=True)
+        self._write_character(end_address, 0x00, preserve=True)
 
     def _shift_right(self, start_address, end_address):
         addresses = list(self._get_addresses(start_address, end_address))
 
         for (left_address, right_address) in reversed(list(zip(addresses, addresses[1:]))):
-            self._write_character(right_address, self.cells[left_address].byte,
-                                  preserve_formatting=True)
+            self._write_character(right_address, self.cells[left_address].byte, preserve=True)
 
-        self._write_character(start_address, 0x00, preserve_formatting=True)
+        self._write_character(start_address, 0x00, preserve=True)
+
+    def _generate_inbound_orders(self, start_address, end_address, filter_null=False):
+        orders = []
+
+        data = bytearray()
+
+        def eject():
+            nonlocal data
+
+            if data:
+                orders.append((None, data))
+
+                data = bytearray()
+
+        for address in self._get_addresses(start_address, end_address):
+            cell = self.cells[address]
+
+            if isinstance(cell, AttributeCell):
+                eject()
+
+                orders.append((Order.SF, [cell.attribute]))
+            elif isinstance(cell, CharacterCell):
+                if not filter_null or cell.byte != 0x00:
+                    if cell.character_set == CharacterSet.GE:
+                        eject()
+
+                        orders.append((Order.GE, [cell.byte]))
+                    else:
+                        data.append(cell.byte)
+
+        eject()
+
+        return orders
 
     def _write_structured_fields(self, structured_fields):
         if self.logger.isEnabledFor(logging.DEBUG):

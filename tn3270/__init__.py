@@ -8,6 +8,7 @@ from .emulator import (
     Emulator,
     AttributeCell,
     CharacterCell,
+    CharacterSet,
     OperatorError,
     ProtectedCellOperatorError,
     FieldOverflowOperatorError

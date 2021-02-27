@@ -139,24 +139,34 @@ def format_inbound_read_buffer_message(aid, cursor_address, orders):
     for (order, data) in orders:
         if order == Order.SF:
             bytes_.extend([Order.SF.value, data[0].value])
+        elif order == Order.GE:
+            bytes_.extend([Order.GE.value, data[0]])
         elif order is None:
             bytes_ += data
+        else:
+            raise NotImplementedError(f'{order} is not supported')
 
     return _format_inbound_message(aid, cursor_address, bytes_)
 
-def format_inbound_read_modified_message(aid, cursor_address, fields, all_=False):
+def format_inbound_read_modified_message(aid, cursor_address, orders, all_=False):
     """Format a read modified message for the host."""
     if aid in SHORT_READ_AIDS and not all_:
         return bytearray([aid.value])
 
     bytes_ = bytearray()
 
-    for (address, data) in fields:
-        bytes_.append(Order.SBA.value)
-
-        bytes_ += format_address(address)
-
-        bytes_.extend([byte for byte in data if byte != 0x00])
+    for (order, data) in orders:
+        if order == Order.SBA:
+            bytes_.append(Order.SBA.value)
+            bytes_.extend(format_address(data[0]))
+        elif order == Order.SF:
+            bytes_.extend([Order.SF.value, data[0].value])
+        elif order == Order.GE:
+            bytes_.extend([Order.GE.value, data[0]])
+        elif order is None:
+            bytes_ += data
+        else:
+            raise NotImplementedError(f'{order} is not supported')
 
     return _format_inbound_message(aid, cursor_address, bytes_)
 
@@ -183,7 +193,9 @@ def parse_orders(bytes_):
             if order == Order.PT:
                 pass
             elif order == Order.GE:
-                raise NotImplementedError('GE order is not supported')
+                # TODO: validate size
+                parameters = [bytes_[index]]
+                index += 1
             elif order == Order.SBA:
                 # TODO: validate size
                 parameters = [parse_address(bytes_[index:index+2])[0]]
@@ -207,7 +219,6 @@ def parse_orders(bytes_):
                 extended_attributes = []
 
                 count = bytes_[index]
-
                 index += 1
 
                 for attribute_index in range(index, index + (count * 2), 2):
@@ -222,8 +233,18 @@ def parse_orders(bytes_):
                 raise NotImplementedError('MF order is not supported')
             elif order == Order.RA:
                 # TODO: validate size
-                parameters = [parse_address(bytes_[index:index+2])[0], bytes_[index+2]]
-                index += 3
+                stop_address = parse_address(bytes_[index:index+2])[0]
+                index += 2
+
+                # Peek ahead to detect a GE order.
+                is_ge = False
+
+                if bytes_[index] == Order.GE.value:
+                    is_ge = True
+                    index += 1
+
+                parameters = [stop_address, bytes_[index], is_ge]
+                index += 1
 
             yield (order, parameters)
         else:
