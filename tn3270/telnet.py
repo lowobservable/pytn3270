@@ -6,7 +6,7 @@ tn3270.telnet
 import time
 import logging
 import socket
-from select import select
+import selectors
 from telnetlib import IAC, WILL, WONT, DO, DONT, SB, SE, BINARY, EOR, TTYPE, TN3270E
 
 # https://tools.ietf.org/html/rfc855
@@ -25,6 +25,7 @@ class Telnet:
         self.terminal_type = terminal_type
 
         self.socket = None
+        self.socket_selector = None
         self.eof = None
 
         self.host_options = set()
@@ -36,10 +37,13 @@ class Telnet:
 
     def open(self, host, port):
         """Open the connection."""
-        if self.socket:
-            self.close()
+        self.close()
 
         self.socket = socket.create_connection((host, port))
+
+        self.socket_selector = selectors.DefaultSelector()
+
+        self.socket_selector.register(self.socket, selectors.EVENT_READ)
 
         self.eof = False
 
@@ -54,12 +58,18 @@ class Telnet:
 
     def close(self):
         """Close the connection."""
-        if not self.socket:
-            return
+        if self.socket_selector is not None:
+            self.socket_selector.unregister(self.socket)
 
-        self.socket.close()
+        if self.socket is not None:
+            self.socket.close()
 
-        self.socket = None
+            self.socket = None
+
+        if self.socket_selector is not None:
+            self.socket_selector.close()
+
+            self.socket_selector = None
 
     def read_multiple(self, limit=None, timeout=None):
         """Read multiple records."""
@@ -93,7 +103,7 @@ class Telnet:
         if self.eof:
             raise EOFError
 
-        if not self.socket in select([self.socket], [], [], timeout)[0]:
+        if not self.socket_selector.select(timeout):
             return
 
         bytes_ = self.socket.recv(1024)

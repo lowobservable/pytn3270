@@ -1,3 +1,4 @@
+import selectors
 import unittest
 from unittest.mock import Mock, patch
 
@@ -11,17 +12,23 @@ class OpenTestCase(unittest.TestCase):
 
         self.socket_mock = Mock()
 
+        self.socket_selector_mock = Mock()
+
+        selector_key = Mock(fileobj=self.socket_mock)
+
+        self.socket_selector_mock.select.return_value = [(selector_key, selectors.EVENT_READ)]
+
         patcher = patch('socket.create_connection')
 
         create_connection_mock = patcher.start()
 
         create_connection_mock.return_value = self.socket_mock
 
-        patcher = patch('tn3270.telnet.select')
+        patcher = patch('selectors.DefaultSelector')
 
-        select_mock = patcher.start()
+        default_selector_mock = patcher.start()
 
-        select_mock.return_value = [[self.socket_mock]]
+        default_selector_mock.return_value = self.socket_selector_mock
 
         self.addCleanup(patch.stopall)
 
@@ -71,11 +78,11 @@ class ReadMultipleTestCase(unittest.TestCase):
 
         self.telnet.socket = Mock()
 
-        patcher = patch('tn3270.telnet.select')
+        self.telnet.socket_selector = Mock()
 
-        self.select_mock = patcher.start()
+        selector_key = Mock(fileobj=self.telnet.socket)
 
-        self.select_mock.return_value = [[self.telnet.socket]]
+        self.telnet.socket_selector.select.return_value = [(selector_key, selectors.EVENT_READ)]
 
         self.addCleanup(patch.stopall)
 
@@ -104,7 +111,9 @@ class ReadMultipleTestCase(unittest.TestCase):
         # Arrange
         self.telnet.socket.recv = Mock(side_effect=[bytes.fromhex('01 02 03')])
 
-        self.select_mock.side_effect = [[[self.telnet.socket]], [[]]]
+        selector_key = Mock(fileobj=self.telnet.socket)
+
+        self.telnet.socket_selector.select.side_effect = [[(selector_key, selectors.EVENT_READ)], []]
 
         # Act and assert
         with patch('time.perf_counter') as perf_counter_mock:
@@ -112,10 +121,12 @@ class ReadMultipleTestCase(unittest.TestCase):
 
             self.telnet.read_multiple(timeout=5)
 
-            self.assertEqual(self.select_mock.call_count, 2)
+            self.assertEqual(self.telnet.socket_selector.select.call_count, 2)
 
-            self.assertEqual(self.select_mock.mock_calls[0][1][3], 5)
-            self.assertEqual(self.select_mock.mock_calls[1][1][3], 3)
+            mock_calls = self.telnet.socket_selector.select.mock_calls
+
+            self.assertEqual(mock_calls[0][1][0], 5)
+            self.assertEqual(mock_calls[1][1][0], 3)
 
     def test_recv_eof(self):
         # Arrange
