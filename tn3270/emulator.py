@@ -97,11 +97,21 @@ class Emulator:
 
         # TODO: Validate that stream has read_multiple() and write() methods.
         self.stream = stream
-        self.rows = rows
-        self.columns = columns
 
-        self.cells = [CharacterCell(0x00) for index in range(self.rows * self.columns)]
-        self.dirty = set(range(self.rows * self.columns))
+        if rows < 24:
+            raise ValueError('Invalid rows, must be at least 24')
+
+        if columns < 80:
+            raise ValueError('Invalid columns, must be at least 80')
+
+        self.default_dimensions = (24, 80)
+        self.alternate_dimensions = (rows, columns)
+
+        (self.rows, self.columns) = self.default_dimensions
+        self.alternate = False
+
+        self.cells = [CharacterCell(0x00) for index in range(rows * columns)]
+        self.dirty = set(range(rows * columns))
 
         self.address = 0
         self.cursor_address = 0
@@ -362,7 +372,7 @@ class Emulator:
         elif command == Command.NOP:
             pass
         elif command in [Command.EW, Command.EWA]:
-            self._erase()
+            self._erase(command == Command.EWA)
             self._write(*options)
         elif command == Command.RM:
             self._read_modified()
@@ -373,10 +383,18 @@ class Emulator:
         elif command == Command.WSF:
             self._write_structured_fields(*options)
 
-    def _erase(self):
+    def _erase(self, alternate):
         self.logger.debug('Erase')
+        self.logger.debug(f'\tAlternate = {alternate}')
 
         self._clear()
+
+        if alternate:
+            (self.rows, self.columns) = self.alternate_dimensions
+        else:
+            (self.rows, self.columns) = self.default_dimensions
+
+        self.alternate = alternate
 
     def _erase_all_unprotected(self):
         self.logger.debug('Erase All Unprotected')
@@ -777,7 +795,7 @@ class Emulator:
         if command == 0xf1:
             self._write(WCC(data[2]), data[3:])
         elif command in [0xf5, 0x7e]:
-            self._erase()
+            self._erase(command == 0x7e)
             self._write(WCC(data[2]), data[3:])
         elif command == 0x6f:
             self._erase_all_unprotected()
@@ -808,13 +826,13 @@ class Emulator:
             reply = None
 
             if code == QueryCode.USABLE_AREA:
-                reply = _query_usable_area(self.rows, self.columns)
+                reply = _query_usable_area(self.alternate_dimensions)
             elif code == QueryCode.ALPHANUMERIC_PARTITIONS:
-                reply = _query_alphanumeric_partitions(self.rows, self.columns)
+                reply = _query_alphanumeric_partitions(self.alternate_dimensions)
             elif code == QueryCode.REPLY_MODES:
                 reply = _query_reply_modes()
             elif code == QueryCode.IMPLICIT_PARTITIONS:
-                reply = _query_implicit_partitions(self.rows, self.columns)
+                reply = _query_implicit_partitions(self.alternate_dimensions)
 
             if reply is not None:
                 replies.append((code, reply))
@@ -836,7 +854,9 @@ class Emulator:
 
         self.stream.write(bytes_)
 
-def _query_usable_area(rows, columns):
+def _query_usable_area(dimensions):
+    (rows, columns) = dimensions
+
     return struct.pack('>BBHHBHHHHBBH',
         0x01,           # 12/14-bit addressing allowed
         0x00,           # Cell units, no special features
@@ -852,7 +872,9 @@ def _query_usable_area(rows, columns):
         rows * columns  # Buffer size
     )
 
-def _query_alphanumeric_partitions(rows, columns):
+def _query_alphanumeric_partitions(dimensions):
+    (rows, columns) = dimensions
+
     return struct.pack('>BHB',
         1,              # One partition
         rows * columns, # Buffer size
@@ -864,7 +886,9 @@ def _query_reply_modes():
         0x00            # Field mode
     )
 
-def _query_implicit_partitions(rows, columns):
+def _query_implicit_partitions(dimensions):
+    (rows, columns) = dimensions
+
     return struct.pack('>HBBBHHHH',
         0x0000,         # Flags
         0x0b,           # Length

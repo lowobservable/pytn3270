@@ -31,7 +31,7 @@ class UpdateTestCase(unittest.TestCase):
     def setUp(self):
         self.stream = Mock()
 
-        self.emulator = Emulator(self.stream, 24, 80)
+        self.emulator = Emulator(self.stream, 43, 80)
 
     def test_no_message(self):
         # Arrange
@@ -116,6 +116,8 @@ class UpdateTestCase(unittest.TestCase):
         self.emulator.update()
 
         # Assert
+        self.assertFalse(self.emulator.alternate)
+
         self.assertEqual(self.emulator.cursor_address, 504)
 
         fields = self.emulator.get_fields()
@@ -214,6 +216,8 @@ class UpdateTestCase(unittest.TestCase):
         self.emulator.update()
 
         # Assert
+        self.assertFalse(self.emulator.alternate)
+
         fields = self.emulator.get_fields()
 
         self.assertEqual(len(fields), 1)
@@ -257,7 +261,7 @@ class UpdateTestCase(unittest.TestCase):
         self.emulator.update()
 
         # Assert
-        self.assertEqual(self.emulator.cursor_address, 504)
+        self.assertTrue(self.emulator.alternate)
 
         fields = self.emulator.get_fields()
 
@@ -333,7 +337,7 @@ class UpdateTestCase(unittest.TestCase):
         self.emulator.update()
 
         # Assert
-        self.stream.write.assert_called_with(bytes.fromhex('88 00 09 81 80 80 81 84 88 a6 00 17 81 81 01 00 00 50 00 18 01 00 0a 02 e5 00 02 00 6f 09 0c 07 80 00 08 81 84 01 07 80 00 00 05 81 88 00 00 11 81 a6 00 00 0b 01 00 00 50 00 18 00 50 00 18'))
+        self.stream.write.assert_called_with(bytes.fromhex('88 00 09 81 80 80 81 84 88 a6 00 17 81 81 01 00 00 50 00 2b 01 00 0a 02 e5 00 02 00 6f 09 0c 0d 70 00 08 81 84 01 0d 70 00 00 05 81 88 00 00 11 81 a6 00 00 0b 01 00 00 50 00 18 00 50 00 2b'))
 
 class AidTestCase(unittest.TestCase):
     def setUp(self):
