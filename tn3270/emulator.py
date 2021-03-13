@@ -111,12 +111,18 @@ class Emulator:
 
     def update(self, **kwargs):
         """Read and execute outbound messages."""
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug('Update')
+
         records = self.stream.read_multiple(**kwargs)
 
         if not records:
             return False
 
         for bytes_ in records:
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.debug(f'\tRecord = {bytes_}')
+
             (command, *options) = parse_outbound_message(bytes_)
 
             self._execute(command, *options)
@@ -328,7 +334,6 @@ class Emulator:
     def _execute(self, command, *options):
         if self.logger.isEnabledFor(logging.DEBUG):
             self.logger.debug('Execute')
-            self.logger.debug(f'\tData    = {bytes_}')
             self.logger.debug(f'\tCommand = {command}')
 
         if command == Command.W:
