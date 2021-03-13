@@ -165,6 +165,10 @@ class Emulator:
 
     def home(self):
         """Home key."""
+        if not self.is_formatted():
+            self.cursor_address = 0
+            return
+
         addresses = self._get_addresses(0, (self.rows * self.columns) - 1)
 
         address = next((address for address in addresses
@@ -233,7 +237,8 @@ class Emulator:
 
         self._shift_left(self._wrap_address(self.cursor_address - 1), end_address)
 
-        attribute.modified = True
+        if attribute is not None:
+            attribute.modified = True
 
         self.cursor_address = self._wrap_address(self.cursor_address - 1)
 
@@ -242,16 +247,23 @@ class Emulator:
         if isinstance(self.cells[self.cursor_address], AttributeCell):
             raise ProtectedCellOperatorError
 
+        if not self.is_formatted():
+            raise NotImplementedError('Delete on unformatted screen is not supported')
+
         (_, end_address, attribute) = self.get_field(self.cursor_address)
 
         self._shift_left(self.cursor_address, end_address)
 
-        attribute.modified = True
+        if attribute is not None:
+            attribute.modified = True
 
     def erase_end_of_field(self):
         """Erase end of field (EOF) key."""
         if isinstance(self.cells[self.cursor_address], AttributeCell):
             raise ProtectedCellOperatorError
+
+        if not self.is_formatted():
+            raise NotImplementedError('Erase end of field on unformatted screen is not supported')
 
         (_, end_address, attribute) = self.get_field(self.cursor_address)
 
@@ -262,6 +274,9 @@ class Emulator:
 
     def erase_input(self):
         """Erase input key."""
+        if not self.is_formatted():
+            raise NotImplementedError('Erase input on unformatted screen is not supported')
+
         for (start_address, end_address, attribute) in self.get_fields():
             for address in self._get_addresses(start_address, end_address):
                 self._write_character(address, 0x00, preserve=True)
@@ -278,6 +293,10 @@ class Emulator:
         addresses = self._get_addresses(start_address, end_address)
 
         return bytes([self.cells[address].byte if isinstance(self.cells[address], CharacterCell) else 0x00 for address in addresses])
+
+    def is_formatted(self):
+        """Is there at least one attribute?"""
+        return any([isinstance(cell, AttributeCell) for cell in self.cells])
 
     def get_field(self, address):
         """Get the unprotected field containing or starting at the address."""
@@ -490,7 +509,10 @@ class Emulator:
         self.stream.write(bytes_)
 
     def _read_modified(self, all_=False):
-        modified_field_ranges = [(start_address, end_address) for (start_address, end_address, attribute) in self.get_fields() if attribute.modified]
+        if self.is_formatted():
+            modified_field_ranges = [(start_address, end_address) for (start_address, end_address, attribute) in self.get_fields() if attribute.modified]
+        else:
+            modified_field_ranges = [(0, (self.rows * self.columns) - 1)]
 
         orders = []
 
@@ -513,30 +535,34 @@ class Emulator:
         self.stream.write(bytes_)
 
     def _input(self, byte, insert=False, move=True):
-        if isinstance(self.cells[self.cursor_address], AttributeCell):
-            raise ProtectedCellOperatorError
+        attribute = None
 
-        (_, end_address, attribute) = self.get_field(self.cursor_address)
+        if self.is_formatted():
+            if isinstance(self.cells[self.cursor_address], AttributeCell):
+                raise ProtectedCellOperatorError
 
-        if attribute is None or attribute.protected:
-            raise ProtectedCellOperatorError
+            (_, end_address, attribute) = self.get_field(self.cursor_address)
 
-        # TODO: Implement numeric field validation.
+            # TODO: Implement numeric field validation.
 
-        if insert and self.cells[self.cursor_address].byte != 0x00:
-            addresses = self._get_addresses(self.cursor_address, end_address)
+            if insert and self.cells[self.cursor_address].byte != 0x00:
+                addresses = self._get_addresses(self.cursor_address, end_address)
 
-            first_null_address = next((address for address in addresses
-                                       if self.cells[address].byte == 0x00), None)
+                first_null_address = next((address for address in addresses
+                                           if self.cells[address].byte == 0x00), None)
 
-            if first_null_address is None:
-                raise FieldOverflowOperatorError
+                if first_null_address is None:
+                    raise FieldOverflowOperatorError
 
-            self._shift_right(self.cursor_address, first_null_address)
+                self._shift_right(self.cursor_address, first_null_address)
+        else:
+            if insert:
+                raise NotImplementedError('Insert input on unformatted screen is not supported')
 
         self._write_character(self.cursor_address, byte, preserve=True)
 
-        attribute.modified = True
+        if attribute is not None:
+            attribute.modified = True
 
         if not move:
             return

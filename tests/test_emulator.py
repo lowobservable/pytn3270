@@ -25,6 +25,8 @@ SCREEN3 = bytes.fromhex(('05c311000060606e1d001101a41d304c60601101b860606e1d0011
                          '60601101f460606e1d001101fe1d304c606011020860606e1d001102121d304c'
                          '606011000413'))
 
+SCREEN4 = bytes.fromhex('05c1110015e38889a240a283998585954089a240a4958696999481a3a38584')
+
 class UpdateTestCase(unittest.TestCase):
     def setUp(self):
         self.stream = Mock()
@@ -1166,3 +1168,27 @@ class EraseInputTestCase(unittest.TestCase):
 
         self.assertFalse(fields[1][2].modified)
         self.assertEqual(emulator.get_bytes(fields[1][0], fields[1][1]), bytes.fromhex('00000000000000000000'))
+
+class IsFormattedTestCase(unittest.TestCase):
+    def setUp(self):
+        self.stream = Mock()
+
+        self.emulator = Emulator(self.stream, 24, 80)
+
+    def test_formatted(self):
+        # Arrange
+        self.stream.read_multiple = Mock(return_value=[SCREEN1])
+
+        self.emulator.update()
+
+        # Act and assert
+        self.assertTrue(self.emulator.is_formatted())
+
+    def test_unformatted(self):
+        # Arrange
+        self.stream.read_multiple = Mock(return_value=[SCREEN4])
+
+        self.emulator.update()
+
+        # Act and assert
+        self.assertFalse(self.emulator.is_formatted())
