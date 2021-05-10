@@ -65,7 +65,7 @@ class HighlightExtendedAttribute(ExtendedAttribute):
         elif value == 0xf2:
             self.reverse = True
         elif value == 0xf4:
-            self.underline = True
+            self.underscore = True
 
     def __repr__(self):
         return (f'<HighlightExtendedAttribute blink={self.blink}, '
