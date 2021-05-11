@@ -21,7 +21,7 @@ Connect to a mainframe:
 ```
 from tn3270 import Telnet, Emulator, AID, CharacterCell
 
-telnet = Telnet('IBM-3278-2')
+telnet = Telnet('IBM-3279-2-E')
 
 telnet.open('mainframe', 23)
 

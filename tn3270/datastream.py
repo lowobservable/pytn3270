@@ -7,7 +7,8 @@ from enum import Enum
 import logging
 
 from .attributes import Attribute, ExtendedAttributeType, ExtendedAttribute, \
-                        HighlightExtendedAttribute, ForegroundColorExtendedAttribute
+                        AllExtendedAttribute, HighlightExtendedAttribute, \
+                        ForegroundColorExtendedAttribute
 
 logger = logging.getLogger(__name__)
 
@@ -310,7 +311,11 @@ def parse_extended_attribute(bytes_):
     type_ = bytes_[0]
     value = bytes_[1]
 
-    if type_ == ExtendedAttributeType.HIGHLIGHT:
+    if type_ == ExtendedAttributeType.ALL:
+        # TODO: value should be 0x00
+        # TODO: This should only be valid for SA orders...
+        return AllExtendedAttribute(type_, value)
+    elif type_ == ExtendedAttributeType.HIGHLIGHT:
         return HighlightExtendedAttribute(type_, value)
     elif type_ == ExtendedAttributeType.FOREGROUND_COLOR:
         return ForegroundColorExtendedAttribute(type_, value)

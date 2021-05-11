@@ -337,7 +337,7 @@ class UpdateTestCase(unittest.TestCase):
         self.emulator.update()
 
         # Assert
-        self.stream.write.assert_called_with(bytes.fromhex('88 00 09 81 80 80 81 84 88 a6 00 17 81 81 01 00 00 50 00 2b 01 00 0a 02 e5 00 02 00 6f 09 0c 0d 70 00 08 81 84 01 0d 70 00 00 05 81 88 00 00 11 81 a6 00 00 0b 01 00 00 50 00 18 00 50 00 2b'))
+        self.stream.write.assert_called_with(bytes.fromhex('88 00 0b 81 80 80 81 84 86 87 88 a6 00 17 81 81 01 00 00 50 00 2b 01 00 0a 02 e5 00 02 00 6f 09 0c 0d 70 00 08 81 84 01 0d 70 00 00 16 81 86 00 08 00 f4 f1 f1 f2 f2 f3 f3 f4 f4 f5 f5 f6 f6 f7 f7 00 0d 81 87 04 00 f0 f1 f1 f2 f2 f4 f4 00 06 81 88 00 01 00 11 81 a6 00 00 0b 01 00 00 50 00 18 00 50 00 2b'))
 
 class AidTestCase(unittest.TestCase):
     def setUp(self):

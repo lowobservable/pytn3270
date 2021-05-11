@@ -12,8 +12,9 @@ from .datastream import Command, WCC, Order, AID, parse_outbound_message, \
                         format_inbound_read_buffer_message, \
                         format_inbound_read_modified_message, \
                         format_inbound_structured_fields
-from .attributes import Attribute, HighlightExtendedAttribute, \
-                        ForegroundColorExtendedAttribute
+from .attributes import Attribute, AllExtendedAttribute, \
+                        Highlight, HighlightExtendedAttribute, \
+                        Color, ForegroundColorExtendedAttribute
 from .structured_fields import StructuredField, ReadPartitionType, \
                                QueryListRequestType, QueryCode
 from .ebcdic import DUP, FM
@@ -43,7 +44,12 @@ class CellFormatting:
                 self._apply_extended_attribute(extended_attribute)
 
     def _apply_extended_attribute(self, extended_attribute):
-        if isinstance(extended_attribute, HighlightExtendedAttribute):
+        if isinstance(extended_attribute, AllExtendedAttribute):
+            self.blink = False
+            self.reverse = False
+            self.underscore = False
+            self.color = 0x00
+        elif isinstance(extended_attribute, HighlightExtendedAttribute):
             self.blink = extended_attribute.blink
             self.reverse = extended_attribute.reverse
             self.underscore = extended_attribute.underscore
@@ -92,7 +98,9 @@ class FieldOverflowOperatorError(OperatorError):
 class Emulator:
     """TN3270 emulator."""
 
-    def __init__(self, stream, rows, columns):
+    def __init__(self, stream, rows, columns, supported_colors=8,
+            supported_highlights=[Highlight.BLINK, Highlight.REVERSE,
+                Highlight.UNDERSCORE]):
         self.logger = logging.getLogger(__name__)
 
         # TODO: Validate that stream has read_multiple() and write() methods.
@@ -104,8 +112,14 @@ class Emulator:
         if columns < 80:
             raise ValueError('Invalid columns, must be at least 80')
 
+        if supported_colors not in [1, 4, 8]:
+            raise ValueError('Invalid suported colors, must be 1, 4 or 8')
+
         self.default_dimensions = (24, 80)
         self.alternate_dimensions = (rows, columns)
+
+        self.supported_colors = supported_colors
+        self.supported_highlights = supported_highlights
 
         (self.rows, self.columns) = self.default_dimensions
         self.alternate = False
@@ -421,7 +435,8 @@ class Emulator:
                 if isinstance(cell, AttributeCell):
                     cell.attribute.modified = False
 
-        formatting = None
+        field_formatting = None
+        character_formatting = None
         character_set = None
 
         for (order, data) in orders:
@@ -439,7 +454,7 @@ class Emulator:
                 else:
                     raise NotImplementedError('PT order is not fully supported')
             elif order == Order.GE:
-                self._write_character(self.address, data[0], CharacterSet.GE, formatting)
+                self._write_character(self.address, data[0], CharacterSet.GE, None)
 
                 self.address = self._wrap_address(self.address + 1)
             elif order == Order.SBA:
@@ -463,18 +478,18 @@ class Emulator:
             elif order == Order.IC:
                 self.cursor_address = self.address
             elif order == Order.SF:
-                formatting = None
+                field_formatting = None
 
-                self._write_attribute(self.address, data[0], formatting)
+                self._write_attribute(self.address, data[0], field_formatting)
 
                 self.address = self._wrap_address(self.address + 1)
             elif order == Order.SA:
-                formatting = CellFormatting(formatting, extended_attributes=[data[0]])
+                character_formatting = CellFormatting(character_formatting, extended_attributes=[data[0]])
             elif order == Order.SFE:
                 # TODO: Confirm that formatting should be reset here
-                formatting = CellFormatting(None, extended_attributes=data[1])
+                field_formatting = CellFormatting(None, extended_attributes=data[1])
 
-                self._write_attribute(self.address, data[0] or Attribute(0), formatting)
+                self._write_attribute(self.address, data[0] or Attribute(0), field_formatting)
 
                 self.address = self._wrap_address(self.address + 1)
             elif order == Order.MF:
@@ -488,12 +503,12 @@ class Emulator:
                 addresses = self._get_addresses(self.address, end_address)
 
                 for address in addresses:
-                    self._write_character(address, byte, CharacterSet.GE if is_ge else character_set, formatting)
+                    self._write_character(address, byte, CharacterSet.GE if is_ge else character_set, character_formatting)
 
                 self.address = stop_address
             elif order is None:
                 for byte in data:
-                    self._write_character(self.address, byte, character_set, formatting)
+                    self._write_character(self.address, byte, character_set, character_formatting)
 
                     self.address = self._wrap_address(self.address + 1)
 
@@ -810,6 +825,7 @@ class Emulator:
 
         codes = [
             QueryCode.USABLE_AREA, QueryCode.ALPHANUMERIC_PARTITIONS,
+            QueryCode.COLOR, QueryCode.HIGHLIGHT,
             QueryCode.REPLY_MODES, QueryCode.IMPLICIT_PARTITIONS
         ]
 
@@ -829,6 +845,10 @@ class Emulator:
                 reply = _query_usable_area(self.alternate_dimensions)
             elif code == QueryCode.ALPHANUMERIC_PARTITIONS:
                 reply = _query_alphanumeric_partitions(self.alternate_dimensions)
+            elif code == QueryCode.COLOR:
+                reply = _query_color(self.supported_colors)
+            elif code == QueryCode.HIGHLIGHT:
+                reply = _query_highlight(self.supported_highlights)
             elif code == QueryCode.REPLY_MODES:
                 reply = _query_reply_modes()
             elif code == QueryCode.IMPLICIT_PARTITIONS:
@@ -881,9 +901,39 @@ def _query_alphanumeric_partitions(dimensions):
         0x00            # No special features
     )
 
+def _query_color(supported_colors):
+    reply = struct.pack('>BBBB',
+        0x00,           # Flags
+        8,              # Colors
+        0x00,           # Default
+        Color.GREEN
+    )
+
+    for attribute in range(0xf1, 0xf7 + 1):
+        reply += struct.pack('>BB', attribute, attribute if supported_colors > 4 else 0x00)
+
+    return reply
+
+def _query_highlight(supported_highlights):
+    count = len(supported_highlights) + 1
+
+    reply = struct.pack('>BBB',
+        count,          # Types
+        0x00,           # Default
+        Highlight.NORMAL
+    )
+
+    for attribute in supported_highlights:
+        reply += struct.pack('>BB', attribute, attribute)
+
+    return reply
+
 def _query_reply_modes():
-    return struct.pack('>B',
-        0x00            # Field mode
+    # TODO: Extended field mode is not really supported, but this is enough to trick z/VM
+    # into sending us pretty screens.
+    return struct.pack('>BB',
+        0x00,           # Field mode
+        0x01            # Extended field mode
     )
 
 def _query_implicit_partitions(dimensions):

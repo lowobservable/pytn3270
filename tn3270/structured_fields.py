@@ -23,6 +23,8 @@ class QueryCode(IntEnum):
     SUMMARY = 0x80
     USABLE_AREA = 0x81
     ALPHANUMERIC_PARTITIONS = 0x84
+    COLOR = 0x86
+    HIGHLIGHT = 0x87
     REPLY_MODES = 0x88
     IMPLICIT_PARTITIONS = 0xa6
     NULL = 0xff

@@ -37,6 +37,7 @@ class Attribute:
 class ExtendedAttributeType(IntEnum):
     """Extended attribute type."""
 
+    ALL = 0x00
     HIGHLIGHT = 0x41
     FOREGROUND_COLOR = 0x42
 
@@ -50,6 +51,21 @@ class ExtendedAttribute:
     def __repr__(self):
         return f'<ExtendedAttribute type={self.type_}, value={self.value}>'
 
+class AllExtendedAttribute(ExtendedAttribute):
+    """Reset all character attributes extended attribute."""
+
+    def __init__(self, type_, value):
+        super().__init__(type_, value)
+
+class Highlight(IntEnum):
+    """Highlight."""
+
+    NORMAL = 0xf0
+    BLINK = 0xf1
+    REVERSE = 0xf2
+    UNDERSCORE = 0xf4
+    INTENSIFY = 0xf8
+
 class HighlightExtendedAttribute(ExtendedAttribute):
     """Highlight extended attribute."""
 
@@ -60,16 +76,28 @@ class HighlightExtendedAttribute(ExtendedAttribute):
         self.reverse = False
         self.underscore = False
 
-        if value == 0xf1:
+        if value == Highlight.BLINK:
             self.blink = True
-        elif value == 0xf2:
+        elif value == Highlight.REVERSE:
             self.reverse = True
-        elif value == 0xf4:
+        elif value == Highlight.UNDERSCORE:
             self.underscore = True
 
     def __repr__(self):
         return (f'<HighlightExtendedAttribute blink={self.blink}, '
                 f'reverse={self.reverse}, underscore={self.underscore}>')
+
+class Color(IntEnum):
+    """Color."""
+
+    NEUTRAL = 0x00
+    BLUE = 0xf1
+    RED = 0xf2
+    PINK = 0xf3
+    GREEN = 0xf4
+    TURQUOISE = 0xf5
+    YELLOW = 0xf6
+    WHITE = 0xf7
 
 class ForegroundColorExtendedAttribute(ExtendedAttribute):
     """Foreground extended attribute."""
