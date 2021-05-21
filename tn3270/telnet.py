@@ -7,6 +7,7 @@ import time
 import logging
 import socket
 import selectors
+import ssl
 from telnetlib import IAC, WILL, WONT, DO, DONT, SB, SE, BINARY, EOR, TTYPE, TN3270E
 
 # https://tools.ietf.org/html/rfc855
@@ -48,9 +49,15 @@ class Telnet:
         self.iac_buffer = bytearray()
         self.records = []
 
-    def open(self, host, port):
+    def open(self, host, port, use_ssl=False):
         """Open the connection."""
         self.close()
+
+        self.socket = socket.create_connection((host, port))
+
+        if use_ssl:
+            ssl_socket = ssl.wrap_socket(self.socket, ssl_version=ssl.PROTOCOL_SSLv23)
+            self.socket = ssl_socket
 
         self.socket = socket.create_connection((host, port))
 
