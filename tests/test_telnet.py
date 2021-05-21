@@ -1,5 +1,6 @@
 import selectors
 import unittest
+from socket import SOCK_STREAM, AddressFamily
 from unittest.mock import Mock, patch
 
 import context
@@ -138,6 +139,42 @@ class OpenTestCase(unittest.TestCase):
         # Act and assert
         with self.assertRaisesRegex(Exception, 'Unable to negotiate TN3270 mode'):
             self.telnet.open('mainframe', 23)
+
+    def test_tn3270e_negotiation_ssl(self):
+        # Arrange
+        self.telnet = Telnet('IBM-3279-2-E')
+
+        responses = [
+            bytes.fromhex('ff fd 28'),
+            bytes.fromhex('ff fa 28 08 02 ff f0'),
+            bytes.fromhex('ff fa 28 02 04 49 42 4d 2d 33 32 37 38 2d 32 2d 45 01 54 43 50 30 30 30 33 34 ff f0'),
+            bytes.fromhex('ff fa 28 03 04 ff f0')
+        ]
+
+        self.socket_mock.recv = Mock(side_effect=responses)
+        self.socket_mock.getsockopt = Mock(side_effect=[SOCK_STREAM])
+        self.socket_mock.family = Mock(side_effect=[AddressFamily.AF_INET6])
+        self.socket_mock.proto = Mock(side_effect=[6])
+        self.socket_mock.type = Mock(side_effect=[SOCK_STREAM])
+
+        self.assertFalse(self.telnet.is_tn3270_negotiated)
+        self.assertFalse(self.telnet.is_tn3270e_negotiated)
+
+        # Act
+        self.telnet.open('mainframe', 23, use_ssl=True)
+
+        # Assert
+        self.assertTrue(self.telnet.is_tn3270_negotiated)
+        self.assertTrue(self.telnet.is_tn3270e_negotiated)
+
+        self.assertEqual(self.telnet.device_type, 'IBM-3278-2-E')
+        self.assertEqual(self.telnet.device_name, 'TCP00034')
+
+        self.socket_mock.sendall.assert_any_call(bytes.fromhex('ff fb 28'))
+        self.socket_mock.sendall.assert_any_call(
+            bytes.fromhex('ff fa 28 02 07 49 42 4d 2d 33 32 37 38 2d 32 2d 45 ff f0'))
+        self.socket_mock.sendall.assert_any_call(bytes.fromhex('ff fa 28 03 07 ff f0'))
+
 
 class ReadMultipleTestCase(unittest.TestCase):
     def setUp(self):
