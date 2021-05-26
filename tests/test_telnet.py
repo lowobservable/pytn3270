@@ -1,11 +1,9 @@
 import selectors
 import ssl
 import unittest
-from socket import SOCK_STREAM, AddressFamily
 from unittest.mock import Mock, patch
 
 from tn3270.telnet import Telnet
-
 
 class OpenTestCase(unittest.TestCase):
     def setUp(self):
@@ -158,12 +156,6 @@ class OpenTestCase(unittest.TestCase):
         ]
 
         self.socket_mock.recv = Mock(side_effect=responses)
-        self.socket_mock.getsockopt = Mock(side_effect=[SOCK_STREAM])
-        self.socket_mock.gettimeout = Mock(side_effect=[None])
-        self.socket_mock.family = AddressFamily.AF_INET6
-        self.socket_mock.proto = 6
-        self.socket_mock.type = SOCK_STREAM
-        self.socket_mock.fileno = Mock(side_effect=[9])
 
         self.assertFalse(self.telnet.is_tn3270_negotiated)
         self.assertFalse(self.telnet.is_tn3270e_negotiated)
@@ -183,7 +175,6 @@ class OpenTestCase(unittest.TestCase):
         self.socket_mock.sendall.assert_any_call(
             bytes.fromhex('ff fa 28 02 07 49 42 4d 2d 33 32 37 38 2d 32 2d 45 ff f0'))
         self.socket_mock.sendall.assert_any_call(bytes.fromhex('ff fa 28 03 07 ff f0'))
-
 
 class ReadMultipleTestCase(unittest.TestCase):
     def setUp(self):
