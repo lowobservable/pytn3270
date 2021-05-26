@@ -48,11 +48,14 @@ class Telnet:
         self.iac_buffer = bytearray()
         self.records = []
 
-    def open(self, host, port):
+    def open(self, host, port, ssl_context=None, ssl_server_hostname=None):
         """Open the connection."""
         self.close()
 
         self.socket = socket.create_connection((host, port))
+
+        if ssl_context:
+            self.socket = ssl_context.wrap_socket(self.socket, server_hostname=ssl_server_hostname)
 
         self.socket_selector = selectors.DefaultSelector()
 

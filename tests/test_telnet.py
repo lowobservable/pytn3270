@@ -1,8 +1,7 @@
 import selectors
+import ssl
 import unittest
 from unittest.mock import Mock, patch
-
-import context
 
 from tn3270.telnet import Telnet
 
@@ -27,6 +26,12 @@ class OpenTestCase(unittest.TestCase):
         default_selector_mock = patcher.start()
 
         default_selector_mock.return_value = self.socket_selector_mock
+
+        patcher = patch('ssl.SSLContext.wrap_socket')
+
+        ssl_wrap_socket_mock = patcher.start()
+
+        ssl_wrap_socket_mock.return_value = self.socket_mock
 
         self.addCleanup(patch.stopall)
 
@@ -138,6 +143,38 @@ class OpenTestCase(unittest.TestCase):
         # Act and assert
         with self.assertRaisesRegex(Exception, 'Unable to negotiate TN3270 mode'):
             self.telnet.open('mainframe', 23)
+
+    def test_tn3270e_negotiation_ssl(self):
+        # Arrange
+        self.telnet = Telnet('IBM-3279-2-E')
+
+        responses = [
+            bytes.fromhex('ff fd 28'),
+            bytes.fromhex('ff fa 28 08 02 ff f0'),
+            bytes.fromhex('ff fa 28 02 04 49 42 4d 2d 33 32 37 38 2d 32 2d 45 01 54 43 50 30 30 30 33 34 ff f0'),
+            bytes.fromhex('ff fa 28 03 04 ff f0')
+        ]
+
+        self.socket_mock.recv = Mock(side_effect=responses)
+
+        self.assertFalse(self.telnet.is_tn3270_negotiated)
+        self.assertFalse(self.telnet.is_tn3270e_negotiated)
+
+        # Act
+        ssl_context = ssl.create_default_context()
+        self.telnet.open('mainframe', 23, ssl_context=ssl_context)
+
+        # Assert
+        self.assertTrue(self.telnet.is_tn3270_negotiated)
+        self.assertTrue(self.telnet.is_tn3270e_negotiated)
+
+        self.assertEqual(self.telnet.device_type, 'IBM-3278-2-E')
+        self.assertEqual(self.telnet.device_name, 'TCP00034')
+
+        self.socket_mock.sendall.assert_any_call(bytes.fromhex('ff fb 28'))
+        self.socket_mock.sendall.assert_any_call(
+            bytes.fromhex('ff fa 28 02 07 49 42 4d 2d 33 32 37 38 2d 32 2d 45 ff f0'))
+        self.socket_mock.sendall.assert_any_call(bytes.fromhex('ff fa 28 03 07 ff f0'))
 
 class ReadMultipleTestCase(unittest.TestCase):
     def setUp(self):
