@@ -7,7 +7,6 @@ import time
 import logging
 import socket
 import selectors
-import ssl
 from telnetlib import IAC, WILL, WONT, DO, DONT, SB, SE, BINARY, EOR, TTYPE, TN3270E
 
 # https://tools.ietf.org/html/rfc855
