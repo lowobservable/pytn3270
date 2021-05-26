@@ -29,6 +29,12 @@ class OpenTestCase(unittest.TestCase):
 
         default_selector_mock.return_value = self.socket_selector_mock
 
+        patcher = patch('ssl.SSLContext.wrap_socket')
+
+        ssl_wrap_socket_mock = patcher.start()
+
+        ssl_wrap_socket_mock.return_value = self.socket_mock
+
         self.addCleanup(patch.stopall)
 
     def test_basic_tn3270_negotiation(self):
@@ -157,15 +163,13 @@ class OpenTestCase(unittest.TestCase):
         self.socket_mock.family = AddressFamily.AF_INET6
         self.socket_mock.proto = 6
         self.socket_mock.type = SOCK_STREAM
-        self.socket_mock.fileno = Mock(side_effect=[None])
+        self.socket_mock.fileno = Mock(side_effect=[9])
 
         self.assertFalse(self.telnet.is_tn3270_negotiated)
         self.assertFalse(self.telnet.is_tn3270e_negotiated)
 
         # Act
         ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
         self.telnet.open('mainframe', 23, ssl_context=ssl_context)
 
         # Assert
