@@ -48,7 +48,7 @@ class Telnet:
         self.iac_buffer = bytearray()
         self.records = []
 
-    def open(self, host, port, ssl_context=None, ssl_server_hostname=None, timeout=None):
+    def open(self, host, port, tn3270_negotiation_timeout=None, ssl_context=None, ssl_server_hostname=None):
         """Open the connection."""
         self.close()
 
@@ -73,7 +73,7 @@ class Telnet:
         self.iac_buffer = bytearray()
         self.records = []
 
-        self._negotiate_tn3270(timeout=timeout)
+        self._negotiate_tn3270(timeout=tn3270_negotiation_timeout)
 
     def close(self):
         """Close the connection."""
