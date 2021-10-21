@@ -1,15 +1,18 @@
-import selectors
-import ssl
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, create_autospec, patch
+
+from socket import socket
+import selectors
+from selectors import BaseSelector
+import ssl
 
 from tn3270.telnet import Telnet
 
 class OpenTestCase(unittest.TestCase):
     def setUp(self):
-        self.socket_mock = Mock()
+        self.socket_mock = create_autospec(socket, instance=True)
 
-        self.socket_selector_mock = Mock()
+        self.socket_selector_mock = create_autospec(BaseSelector, instance=True)
 
         selector_key = Mock(fileobj=self.socket_mock)
 
@@ -180,17 +183,15 @@ class ReadMultipleTestCase(unittest.TestCase):
     def setUp(self):
         self.telnet = Telnet('IBM-3279-2-E')
 
-        self.telnet.socket = Mock()
+        self.telnet.socket = create_autospec(socket, instance=True)
 
-        self.telnet.socket_selector = Mock()
+        self.telnet.socket_selector = create_autospec(BaseSelector, instance=True)
 
         self.is_tn3270e_negotiated = False
 
         selector_key = Mock(fileobj=self.telnet.socket)
 
         self.telnet.socket_selector.select.return_value = [(selector_key, selectors.EVENT_READ)]
-
-        self.addCleanup(patch.stopall)
 
     def test_multiple_records_in_single_recv(self):
         # Arrange
@@ -260,7 +261,7 @@ class WriteTestCase(unittest.TestCase):
         # Arrange
         telnet = Telnet('IBM-3279-2-E')
 
-        telnet.socket = Mock()
+        telnet.socket = create_autospec(socket, instance=True)
 
         telnet.is_tn3270e_negotiated = False
 
@@ -274,7 +275,7 @@ class WriteTestCase(unittest.TestCase):
         # Arrange
         telnet = Telnet('IBM-3279-2-E')
 
-        telnet.socket = Mock()
+        telnet.socket = create_autospec(socket, instance=True)
 
         telnet.is_tn3270e_negotiated = True
 

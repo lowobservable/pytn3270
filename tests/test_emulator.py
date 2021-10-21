@@ -1,9 +1,11 @@
-import string
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, create_autospec
+
+import string
 
 import context
 
+from tn3270.telnet import Telnet
 from tn3270.emulator import Emulator, AttributeCell, CharacterCell, ProtectedCellOperatorError, FieldOverflowOperatorError
 from tn3270.datastream import AID
 
@@ -29,7 +31,7 @@ SCREEN4 = bytes.fromhex('05c1110015e38889a240a283998585954089a240a4958696999481a
 
 class UpdateTestCase(unittest.TestCase):
     def setUp(self):
-        self.stream = Mock()
+        self.stream = create_autospec(Telnet, instance=True)
 
         self.emulator = Emulator(self.stream, 43, 80)
 
@@ -341,7 +343,7 @@ class UpdateTestCase(unittest.TestCase):
 
 class AidTestCase(unittest.TestCase):
     def setUp(self):
-        self.stream = Mock()
+        self.stream = create_autospec(Telnet, instance=True)
 
         self.stream.write = Mock()
 
@@ -431,7 +433,7 @@ class AidTestCase(unittest.TestCase):
 
 class TabTestCase(unittest.TestCase):
     def setUp(self):
-        self.stream = Mock()
+        self.stream = create_autospec(Telnet, instance=True)
 
         self.stream.read_multiple = Mock(return_value=[SCREEN1])
 
@@ -519,7 +521,7 @@ class TabTestCase(unittest.TestCase):
 
 class NewlineTestCase(unittest.TestCase):
     def setUp(self):
-        self.stream = Mock()
+        self.stream = create_autospec(Telnet, instance=True)
 
         self.stream.read_multiple = Mock(return_value=[SCREEN3])
 
@@ -575,7 +577,7 @@ class NewlineTestCase(unittest.TestCase):
 
 class HomeTestCase(unittest.TestCase):
     def setUp(self):
-        self.stream = Mock()
+        self.stream = create_autospec(Telnet, instance=True)
 
         self.stream.read_multiple = Mock(return_value=[SCREEN1])
 
@@ -739,7 +741,7 @@ class CursorRightTestCase(unittest.TestCase):
 
 class InputTestCase(unittest.TestCase):
     def setUp(self):
-        self.stream = Mock()
+        self.stream = create_autospec(Telnet, instance=True)
 
         self.emulator = Emulator(self.stream, 24, 80)
 
@@ -805,7 +807,7 @@ class InputTestCase(unittest.TestCase):
 
     def test_wrap(self):
         # Arrange
-        self.stream = Mock()
+        self.stream = create_autospec(Telnet, instance=True)
 
         self.emulator = Emulator(self.stream, 24, 80)
 
@@ -879,7 +881,7 @@ class InputTestCase(unittest.TestCase):
 
 class DupTestCase(unittest.TestCase):
     def setUp(self):
-        self.stream = Mock()
+        self.stream = create_autospec(Telnet, instance=True)
 
         self.emulator = Emulator(self.stream, 24, 80)
 
@@ -917,7 +919,7 @@ class DupTestCase(unittest.TestCase):
 
 class BackspaceTestCase(unittest.TestCase):
     def setUp(self):
-        self.stream = Mock()
+        self.stream = create_autospec(Telnet, instance=True)
 
         self.emulator = Emulator(self.stream, 24, 80)
 
@@ -1001,7 +1003,7 @@ class BackspaceTestCase(unittest.TestCase):
 
 class DeleteTestCase(unittest.TestCase):
     def setUp(self):
-        self.stream = Mock()
+        self.stream = create_autospec(Telnet, instance=True)
 
         self.emulator = Emulator(self.stream, 24, 80)
 
@@ -1071,7 +1073,7 @@ class DeleteTestCase(unittest.TestCase):
 
 class EraseEndOfFieldTestCase(unittest.TestCase):
     def setUp(self):
-        self.stream = Mock()
+        self.stream = create_autospec(Telnet, instance=True)
 
         self.emulator = Emulator(self.stream, 24, 80)
 
@@ -1140,7 +1142,7 @@ class EraseEndOfFieldTestCase(unittest.TestCase):
 class EraseInputTestCase(unittest.TestCase):
     def test(self):
         # Arrange
-        stream = Mock()
+        stream = create_autospec(Telnet, instance=True)
 
         emulator = Emulator(stream, 24, 80)
 
@@ -1175,7 +1177,7 @@ class EraseInputTestCase(unittest.TestCase):
 
 class IsFormattedTestCase(unittest.TestCase):
     def setUp(self):
-        self.stream = Mock()
+        self.stream = create_autospec(Telnet, instance=True)
 
         self.emulator = Emulator(self.stream, 24, 80)
 
