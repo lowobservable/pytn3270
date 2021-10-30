@@ -493,7 +493,23 @@ class Emulator:
 
                 self.address = self._wrap_address(self.address + 1)
             elif order == Order.MF:
-                raise NotImplementedError('MF order is not supported')
+                if isinstance(self.cells[self.address], AttributeCell):
+                    (attribute, extended_attributes) = data
+
+                    if attribute is not None:
+                        self.cells[self.address].attribute = attribute
+
+                    if extended_attributes:
+                        existing_formatting = self.cells[self.address].formatting
+
+                        # TODO: Confirm that this should affect "global" formatting...
+                        field_formatting = CellFormatting(existing_formatting, extended_attributes)
+
+                        self.cells[self.address].formatting = field_formatting
+
+                    self.address = self._wrap_address(self.address + 1)
+                else:
+                    self.logger.warning('MF order rejected as cell is not attribute cell')
             elif order == Order.RA:
                 (stop_address, byte, is_ge) = data
 

@@ -262,8 +262,21 @@ class ParseOrdersTestCase(unittest.TestCase):
         self.assertEqual(extended_attributes[0].color, 0xf1)
 
     def test_modify_field(self):
-        with self.assertRaises(NotImplementedError):
-            list(parse_orders(bytes.fromhex('2c')))
+        # Act
+        orders = list(parse_orders(bytes.fromhex('2c 02 c0 60 42 f1')))
+
+        # Assert
+        self.assertEqual(orders[0][0], Order.MF)
+
+        self.assertIsInstance(orders[0][1][0], Attribute)
+        self.assertEqual(orders[0][1][0].value, 0x60)
+
+        extended_attributes = orders[0][1][1]
+
+        self.assertEqual(len(extended_attributes), 1)
+
+        self.assertIsInstance(extended_attributes[0], ForegroundColorExtendedAttribute)
+        self.assertEqual(extended_attributes[0].color, 0xf1)
 
     def test_repeat_to_address(self):
         self.assertEqual(list(parse_orders(bytes.fromhex('3c 4b f0 c1'))), [(Order.RA, [752, 0xc1, False])])

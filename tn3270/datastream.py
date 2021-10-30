@@ -214,7 +214,7 @@ def parse_orders(bytes_):
                 # TODO: validate size
                 parameters = [parse_extended_attribute(bytes_[index:index+2])]
                 index += 2
-            elif order == Order.SFE:
+            elif order in [Order.SFE, Order.MF]:
                 # TODO: validate size
                 attribute = None
                 extended_attributes = []
@@ -230,8 +230,6 @@ def parse_orders(bytes_):
 
                 parameters = [attribute, extended_attributes]
                 index += count * 2
-            elif order == Order.MF:
-                raise NotImplementedError('MF order is not supported')
             elif order == Order.RA:
                 # TODO: validate size
                 stop_address = parse_address(bytes_[index:index+2])[0]
