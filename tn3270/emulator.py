@@ -763,6 +763,8 @@ class Emulator:
         for (id_, data) in structured_fields:
             if id_ == StructuredField.READ_PARTITION:
                 self._read_partition(data)
+            elif id_ == StructuredField.ERASE_RESET:
+                self._erase(data[0] == 0x80)
             elif id_ == StructuredField.OUTBOUND_3270DS:
                 self._outbound_3270ds(data)
             else:
