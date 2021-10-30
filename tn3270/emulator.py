@@ -11,7 +11,7 @@ import logging
 from .datastream import Command, WCC, Order, AID, parse_outbound_message, \
                         format_inbound_read_buffer_message, \
                         format_inbound_read_modified_message, \
-                        format_inbound_structured_fields
+                        parse_orders, format_inbound_structured_fields
 from .attributes import Attribute, AllExtendedAttribute, \
                         Highlight, HighlightExtendedAttribute, \
                         Color, ForegroundColorExtendedAttribute
@@ -808,10 +808,10 @@ class Emulator:
             self.logger.warning(f'Partition 0x{partition:02x} not supported')
 
         if command == 0xf1:
-            self._write(WCC(data[2]), data[3:])
+            self._write(WCC(data[2]), parse_orders(data[3:]))
         elif command in [0xf5, 0x7e]:
             self._erase(command == 0x7e)
-            self._write(WCC(data[2]), data[3:])
+            self._write(WCC(data[2]), parse_orders(data[3:]))
         elif command == 0x6f:
             self._erase_all_unprotected()
         else:
