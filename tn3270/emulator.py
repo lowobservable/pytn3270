@@ -439,6 +439,11 @@ class Emulator:
         character_formatting = None
         character_set = None
 
+        previous_order = None
+
+        pt_order_previous_command = True
+        pt_order_previous_null_insert = False
+
         for (order, data) in orders:
             if self.logger.isEnabledFor(logging.DEBUG):
                 if order is None:
@@ -448,11 +453,43 @@ class Emulator:
                     self.logger.debug(f'\t\tParameters = {data}')
 
             if order == Order.PT:
-                # TODO: Implement additional PT cases
                 if isinstance(self.cells[self.address], AttributeCell) and not self.cells[self.address].attribute.protected:
                     self.address = self._wrap_address(self.address + 1)
                 else:
-                    raise NotImplementedError('PT order is not fully supported')
+                    address = self._calculate_tab_address(self.address, direction=1)
+
+                    if address < self.address:
+                        address = 0
+
+                    # GA23-0059-4 Pg 4-7:
+                    #
+                    # | If PT does not immediately follow a command, order, or order sequence,
+                    # | nulls are inserted into the buffer from the current buffer address to
+                    # | the end of the field. When PT immediately follows a command, order, or
+                    # | order sequence, the buffer is not modified.
+                    # |
+                    # | [...]
+                    # |
+                    # | To continue the search for an unprotected field, a second PT order must
+                    # | be issued immediately following the first one [...]. If, as a result
+                    # | of a PT order, the display is still inserting nulls [...], a new PT
+                    # | order continues to insert nulls from buffer address 0 to the end of the
+                    # | current field.
+                    if not pt_order_previous_command or (previous_order == Order.PT and pt_order_previous_null_insert):
+                        (_, end_address, _) = self.get_field(self.address)
+
+                        if address == 0:
+                            end_address = (self.rows * self.columns) - 1
+                            pt_order_previous_null_insert = True
+                        else:
+                            pt_order_previous_null_insert = False
+
+                        for field_address in self._get_addresses(self.address, end_address):
+                            self._write_character(field_address, 0x00, preserve=False)
+                    else:
+                        pt_order_previous_null_insert = False
+
+                    self.address = address
             elif order == Order.GE:
                 self._write_character(self.address, data[0], CharacterSet.GE, None)
 
@@ -527,6 +564,13 @@ class Emulator:
                     self._write_character(self.address, byte, character_set, character_formatting)
 
                     self.address = self._wrap_address(self.address + 1)
+
+            previous_order = order
+
+            if order is not None and order != Order.GE:
+                pt_order_previous_command = True
+            else:
+                pt_order_previous_command = False
 
         if wcc.unlock_keyboard:
             self.current_aid = AID.NONE
