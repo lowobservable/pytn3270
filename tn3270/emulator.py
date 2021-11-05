@@ -461,6 +461,8 @@ class Emulator:
                     if address is None or address < self.address:
                         address = 0
 
+                    print(f'PT order, setting address = {address}')
+
                     # GA23-0059-4 Pg 4-7:
                     #
                     # | If PT does not immediately follow a command, order, or order sequence,
@@ -476,16 +478,20 @@ class Emulator:
                     # | order continues to insert nulls from buffer address 0 to the end of the
                     # | current field.
                     if not pt_order_previous_command or (previous_order == Order.PT and pt_order_previous_null_insert):
-                        (_, end_address, _) = self.get_field(self.address)
+                        end_address = self._wrap_address(address - 1)
+
+                        for null_address in self._get_addresses(self.address, end_address):
+                            if isinstance(self.cells[null_address], AttributeCell):
+                                break
+
+                            print(f'NULL @ {null_address}')
+
+                            self._write_character(null_address, 0x00, preserve=False)
 
                         if address == 0:
-                            end_address = (self.rows * self.columns) - 1
                             pt_order_previous_null_insert = True
                         else:
                             pt_order_previous_null_insert = False
-
-                        for field_address in self._get_addresses(self.address, end_address):
-                            self._write_character(field_address, 0x00, preserve=False)
                     else:
                         pt_order_previous_null_insert = False
 
