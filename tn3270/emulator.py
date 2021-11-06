@@ -545,9 +545,10 @@ class Emulator:
                     if extended_attributes:
                         existing_formatting = self.cells[self.address].formatting
 
-                        formatting = CellFormatting(existing_formatting, extended_attributes)
+                        # TODO: Confirm that this should affect "global" formatting...
+                        field_formatting = CellFormatting(existing_formatting, extended_attributes)
 
-                        self.cells[self.address].formatting = formatting
+                        self.cells[self.address].formatting = field_formatting
 
                     self.address = self._wrap_address(self.address + 1)
                 else:
