@@ -268,11 +268,11 @@ class Emulator:
 
     def delete(self):
         """Delete key."""
+        if not self.is_formatted():
+            return
+
         if isinstance(self.cells[self.cursor_address], AttributeCell):
             raise ProtectedCellOperatorError
-
-        if not self.is_formatted():
-            raise NotImplementedError('Delete on unformatted screen is not supported')
 
         (_, end_address, attribute) = self.get_field(self.cursor_address)
 
@@ -283,34 +283,32 @@ class Emulator:
 
     def erase_end_of_field(self):
         """Erase end of field (EOF) key."""
-        if isinstance(self.cells[self.cursor_address], AttributeCell):
-            raise ProtectedCellOperatorError
+        if self.is_formatted():
+            if isinstance(self.cells[self.cursor_address], AttributeCell):
+                raise ProtectedCellOperatorError
 
-        if not self.is_formatted():
-            raise NotImplementedError('Erase end of field on unformatted screen is not supported')
+            (_, end_address, attribute) = self.get_field(self.cursor_address)
 
-        (_, end_address, attribute) = self.get_field(self.cursor_address)
+            for address in self._get_addresses(self.cursor_address, end_address):
+                self._write_character(address, 0x00, preserve=True)
 
-        for address in self._get_addresses(self.cursor_address, end_address):
-            self._write_character(address, 0x00, preserve=True)
-
-        attribute.modified = True
+            attribute.modified = True
+        else:
+            for address in self._get_addresses(self.cursor_address, (self.rows * self.columns) - 1):
+                self._write_character(address, 0x00, preserve=True)
 
     def erase_input(self):
         """Erase input key."""
-        if not self.is_formatted():
-            raise NotImplementedError('Erase input on unformatted screen is not supported')
+        if self.is_formatted():
+            for (start_address, end_address, attribute) in self.get_fields():
+                for address in self._get_addresses(start_address, end_address):
+                    self._write_character(address, 0x00, preserve=True)
 
-        for (start_address, end_address, attribute) in self.get_fields():
-            for address in self._get_addresses(start_address, end_address):
-                self._write_character(address, 0x00, preserve=True)
+                attribute.modified = False
 
-            attribute.modified = False
-
-        # TODO: Confirm behavior but I think this should reposition the cursor to the
-        # first character location, after the field attribute, in the first unprotected
-        # field of the partition's character buffer - it is the same as Erase All
-        # Unprotected.
+            self.cursor_address = self._calculate_tab_address(0, 1) or 0
+        else:
+            self._clear()
 
     def get_bytes(self, start_address, end_address):
         """Get character cell bytes."""
@@ -413,17 +411,19 @@ class Emulator:
     def _erase_all_unprotected(self):
         self.logger.debug('Erase All Unprotected')
 
-        for (start_address, end_address, attribute) in self.get_fields():
-            for address in self._get_addresses(start_address, end_address):
-                self._write_character(address, 0x00, preserve=True)
+        if self.is_formatted():
+            for (start_address, end_address, attribute) in self.get_fields():
+                for address in self._get_addresses(start_address, end_address):
+                    self._write_character(address, 0x00, preserve=True)
 
-            attribute.modified = False
+                attribute.modified = False
+
+            self.cursor_address = self._calculate_tab_address(0, 1) or 0
+        else:
+            self._clear()
 
         self.current_aid = AID.NONE
         self.keyboard_locked = False
-
-        # TODO: Repositions the cursor to the first character location, after the field
-        # attribute, in the first unprotected field of the partition's character buffer.
 
     def _write(self, wcc, orders):
         if self.logger.isEnabledFor(logging.DEBUG):
