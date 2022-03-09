@@ -45,7 +45,7 @@ for cell in emulator.cells:
         if byte == 0:
             screen += ' '
         else:
-            screen += bytes([byte]).decode('cp500')
+            screen += bytes([byte]).decode('ibm037')
     else:
         screen += '@'
 

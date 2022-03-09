@@ -82,7 +82,7 @@ class UpdateTestCase(unittest.TestCase):
 
         self.emulator.cursor_address = 505
 
-        for character in 'ABCDEFGHIJ'.encode('cp500'):
+        for character in 'ABCDEFGHIJ'.encode('ibm037'):
             self.emulator.input(character)
 
         self.assertEqual(self.emulator.cursor_address, 525)
@@ -240,7 +240,7 @@ class UpdateTestCase(unittest.TestCase):
 
         self.emulator.cursor_address = 505
 
-        for character in 'ABCDEFGHIJ'.encode('cp500'):
+        for character in 'ABCDEFGHIJ'.encode('ibm037'):
             self.emulator.input(character)
 
         self.assertEqual(self.emulator.cursor_address, 525)
@@ -277,7 +277,7 @@ class UpdateTestCase(unittest.TestCase):
 
         self.emulator.cursor_address = 505
 
-        for character in 'ABCDEFGHIJ'.encode('cp500'):
+        for character in 'ABCDEFGHIJ'.encode('ibm037'):
             self.emulator.input(character)
 
         self.assertEqual(self.emulator.cursor_address, 525)
@@ -300,7 +300,7 @@ class UpdateTestCase(unittest.TestCase):
 
         self.emulator.cursor_address = 505
 
-        for character in 'ABCDEFGHIJ'.encode('cp500'):
+        for character in 'ABCDEFGHIJ'.encode('ibm037'):
             self.emulator.input(character)
 
         self.emulator.current_aid = AID.ENTER
@@ -357,7 +357,7 @@ class AidTestCase(unittest.TestCase):
 
         self.emulator.cursor_address = 500
 
-        for character in 'ABCDEFGHIJKLMNO'.encode('cp500'):
+        for character in 'ABCDEFGHIJKLMNO'.encode('ibm037'):
             self.emulator.input(character)
 
         self.assertEqual(self.emulator.cursor_address, 525)
@@ -376,7 +376,7 @@ class AidTestCase(unittest.TestCase):
 
         self.emulator.cursor_address = 505
 
-        for character in 'ABCDEFGHIJ'.encode('cp500'):
+        for character in 'ABCDEFGHIJ'.encode('ibm037'):
             self.emulator.input(character)
 
         self.assertEqual(self.emulator.cursor_address, 525)
@@ -395,7 +395,7 @@ class AidTestCase(unittest.TestCase):
 
         self.emulator.cursor_address = 0
 
-        for character in (string.ascii_uppercase + string.ascii_lowercase).encode('cp500'):
+        for character in (string.ascii_uppercase + string.ascii_lowercase).encode('ibm037'):
             self.emulator.input(character)
 
         self.assertEqual(self.emulator.cursor_address, 10)
@@ -414,7 +414,7 @@ class AidTestCase(unittest.TestCase):
 
         self.emulator.cursor_address = 505
 
-        for character in 'ABCDEFGHIJ'.encode('cp500'):
+        for character in 'ABCDEFGHIJ'.encode('ibm037'):
             self.emulator.input(character)
 
         self.assertEqual(self.emulator.cursor_address, 525)
@@ -825,13 +825,13 @@ class InputTestCase(unittest.TestCase):
         self.assertEqual(self.emulator.cursor_address, 0)
 
         # Act
-        for character in (string.ascii_uppercase + string.ascii_lowercase).encode('cp500'):
+        for character in (string.ascii_uppercase + string.ascii_lowercase).encode('ibm037'):
             self.emulator.input(character)
 
         # Assert
         self.assertEqual(self.emulator.cursor_address, 10)
 
-        text = self.emulator.get_bytes(fields[0][0], fields[0][1]).decode('cp500')
+        text = self.emulator.get_bytes(fields[0][0], fields[0][1]).decode('ibm037')
 
         self.assertEqual(text, 'VWXYZabcdefghijklmnopqrstuvwxyzKLMNOPQRSTU')
 
@@ -961,7 +961,7 @@ class BackspaceTestCase(unittest.TestCase):
         # Arrange
         address = 660
 
-        for character in 'ABCDEFGHIJ'.encode('cp500'):
+        for character in 'ABCDEFGHIJ'.encode('ibm037'):
             self.emulator.cells[address].byte = character
 
             address += 1
@@ -983,7 +983,7 @@ class BackspaceTestCase(unittest.TestCase):
         # Arrange
         address = 660
 
-        for character in 'ABCDEFGHIJ'.encode('cp500'):
+        for character in 'ABCDEFGHIJ'.encode('ibm037'):
             self.emulator.cells[address].byte = character
 
             address += 1
@@ -1031,7 +1031,7 @@ class DeleteTestCase(unittest.TestCase):
         # Arrange
         address = 660
 
-        for character in 'ABCDEFGHIJ'.encode('cp500'):
+        for character in 'ABCDEFGHIJ'.encode('ibm037'):
             self.emulator.cells[address].byte = character
 
             address += 1
@@ -1053,7 +1053,7 @@ class DeleteTestCase(unittest.TestCase):
         # Arrange
         address = 660
 
-        for character in 'ABCDEFGHIJ'.encode('cp500'):
+        for character in 'ABCDEFGHIJ'.encode('ibm037'):
             self.emulator.cells[address].byte = character
 
             address += 1
@@ -1101,7 +1101,7 @@ class EraseEndOfFieldTestCase(unittest.TestCase):
         # Arrange
         address = 660
 
-        for character in 'ABCDEFGHIJ'.encode('cp500'):
+        for character in 'ABCDEFGHIJ'.encode('ibm037'):
             self.emulator.cells[address].byte = character
 
             address += 1
@@ -1122,7 +1122,7 @@ class EraseEndOfFieldTestCase(unittest.TestCase):
         # Arrange
         address = 660
 
-        for character in 'ABCDEFGHIJ'.encode('cp500'):
+        for character in 'ABCDEFGHIJ'.encode('ibm037'):
             self.emulator.cells[address].byte = character
 
             address += 1
@@ -1152,7 +1152,7 @@ class EraseInputTestCase(unittest.TestCase):
 
         emulator.cursor_address = 505
 
-        for character in 'ABCDEFGHIJ'.encode('cp500'):
+        for character in 'ABCDEFGHIJ'.encode('ibm037'):
             emulator.input(character)
 
         fields = emulator.get_fields()
