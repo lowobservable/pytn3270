@@ -567,13 +567,13 @@ class Emulator:
 
                     self.address = self._wrap_address(self.address + 1)
 
-            previous_order = order
-
             # Additional tracking of previous order for PT state.
             if order is not None and order != Order.GE:
                 pt_order_previous_command = True
             else:
                 pt_order_previous_command = False
+
+            previous_order = order
 
         if wcc.unlock_keyboard:
             self.current_aid = AID.NONE
