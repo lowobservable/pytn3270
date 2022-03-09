@@ -461,30 +461,26 @@ class Emulator:
                     if address is None or address < self.address:
                         address = 0
 
-                    print(f'PT order, setting address = {address}')
-
-                    # GA23-0059-4 Pg 4-7:
+                    # If PT does not immediately follow a command, order, or order sequence,
+                    # nulls are inserted into the buffer from the current buffer address to
+                    # the end of the field. When PT immediately follows a command, order, or
+                    # order sequence, the buffer is not modified.
                     #
-                    # | If PT does not immediately follow a command, order, or order sequence,
-                    # | nulls are inserted into the buffer from the current buffer address to
-                    # | the end of the field. When PT immediately follows a command, order, or
-                    # | order sequence, the buffer is not modified.
-                    # |
-                    # | [...]
-                    # |
-                    # | To continue the search for an unprotected field, a second PT order must
-                    # | be issued immediately following the first one [...]. If, as a result
-                    # | of a PT order, the display is still inserting nulls [...], a new PT
-                    # | order continues to insert nulls from buffer address 0 to the end of the
-                    # | current field.
+                    # [...]
+                    #
+                    # To continue the search for an unprotected field, a second PT order must
+                    # be issued immediately following the first one [...]. If, as a result
+                    # of a PT order, the display is still inserting nulls [...], a new PT
+                    # order continues to insert nulls from buffer address 0 to the end of the
+                    # current field.
+                    #
+                    # From GA23-0059-4 Pg 4-7
                     if not pt_order_previous_command or (previous_order == Order.PT and pt_order_previous_null_insert):
                         end_address = self._wrap_address(address - 1)
 
                         for null_address in self._get_addresses(self.address, end_address):
                             if isinstance(self.cells[null_address], AttributeCell):
                                 break
-
-                            print(f'NULL @ {null_address}')
 
                             self._write_character(null_address, 0x00, preserve=False)
 
@@ -573,6 +569,7 @@ class Emulator:
 
             previous_order = order
 
+            # Additional tracking of previous order for PT state.
             if order is not None and order != Order.GE:
                 pt_order_previous_command = True
             else:

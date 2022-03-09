@@ -40,7 +40,7 @@ bytearray(b'\xf1\xc2\x11O_\x13\x11@\xc9,\x01\xc0|\x11@a,\x01\xc0|\x11O^,\x01\xc0
                 if byte == 0:
                     screen += ' '
                 else:
-                    screen += bytes([byte]).decode('cp500')
+                    screen += bytes([byte]).decode('ibm037')
             else:
                 screen += '@'
 
