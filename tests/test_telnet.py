@@ -6,7 +6,7 @@ import selectors
 from selectors import BaseSelector
 import ssl
 
-from tn3270.telnet import Telnet
+from tn3270.telnet import Telnet, encode_rfc1646_terminal_type, encode_rfc2355_device_type, decode_rfc2355_device_type
 
 class OpenTestCase(unittest.TestCase):
     def setUp(self):
@@ -38,6 +38,14 @@ class OpenTestCase(unittest.TestCase):
 
         self.addCleanup(patch.stopall)
 
+    def test_init(self):
+        # Act
+        self.telnet = Telnet('IBM-3279-2-E')
+
+        # Assert
+        self.assertFalse(self.telnet.is_tn3270_negotiated)
+        self.assertFalse(self.telnet.is_tn3270e_negotiated)
+
     def test_basic_tn3270_negotiation(self):
         # Arrange
         self.telnet = Telnet('IBM-3279-2-E')
@@ -52,9 +60,6 @@ class OpenTestCase(unittest.TestCase):
         ]
 
         self.socket_mock.recv = Mock(side_effect=responses)
-
-        self.assertFalse(self.telnet.is_tn3270_negotiated)
-        self.assertFalse(self.telnet.is_tn3270e_negotiated)
 
         # Act
         self.telnet.open('mainframe', 23)
@@ -82,9 +87,6 @@ class OpenTestCase(unittest.TestCase):
         ]
 
         self.socket_mock.recv = Mock(side_effect=responses)
-
-        self.assertFalse(self.telnet.is_tn3270_negotiated)
-        self.assertFalse(self.telnet.is_tn3270e_negotiated)
 
         # Act
         self.telnet.open('mainframe', 23)
@@ -116,9 +118,6 @@ class OpenTestCase(unittest.TestCase):
 
         self.socket_mock.recv = Mock(side_effect=responses)
 
-        self.assertFalse(self.telnet.is_tn3270_negotiated)
-        self.assertFalse(self.telnet.is_tn3270e_negotiated)
-
         # Act
         self.telnet.open('mainframe', 23)
 
@@ -140,9 +139,6 @@ class OpenTestCase(unittest.TestCase):
 
         self.socket_mock.recv = Mock(return_value='hello world'.encode('ascii'))
 
-        self.assertFalse(self.telnet.is_tn3270_negotiated)
-        self.assertFalse(self.telnet.is_tn3270e_negotiated)
-
         # Act and assert
         with self.assertRaisesRegex(Exception, 'Unable to negotiate TN3270 mode'):
             self.telnet.open('mainframe', 23)
@@ -160,9 +156,6 @@ class OpenTestCase(unittest.TestCase):
 
         self.socket_mock.recv = Mock(side_effect=responses)
 
-        self.assertFalse(self.telnet.is_tn3270_negotiated)
-        self.assertFalse(self.telnet.is_tn3270e_negotiated)
-
         # Act
         ssl_context = ssl.create_default_context()
         self.telnet.open('mainframe', 23, ssl_context=ssl_context)
@@ -175,9 +168,158 @@ class OpenTestCase(unittest.TestCase):
         self.assertEqual(self.telnet.device_name, 'TCP00034')
 
         self.socket_mock.sendall.assert_any_call(bytes.fromhex('ff fb 28'))
-        self.socket_mock.sendall.assert_any_call(
-            bytes.fromhex('ff fa 28 02 07 49 42 4d 2d 33 32 37 38 2d 32 2d 45 ff f0'))
+        self.socket_mock.sendall.assert_any_call(bytes.fromhex('ff fa 28 02 07 49 42 4d 2d 33 32 37 38 2d 32 2d 45 ff f0'))
         self.socket_mock.sendall.assert_any_call(bytes.fromhex('ff fa 28 03 07 ff f0'))
+
+    def test_tn3270_device_name_negotiation(self):
+        # Arrange
+        self.telnet = Telnet('IBM-3279-2-E')
+
+        responses = [
+            bytes.fromhex('ff fd 18'),
+            bytes.fromhex('ff fa 18 01 ff f0'),
+            bytes.fromhex('ff fd 19'),
+            bytes.fromhex('ff fb 19'),
+            bytes.fromhex('ff fd 00'),
+            bytes.fromhex('ff fb 00')
+        ]
+
+        self.socket_mock.recv = Mock(side_effect=responses)
+
+        # Act
+        self.telnet.open('mainframe', 23, ['LU1'])
+
+        # Assert
+        self.assertTrue(self.telnet.is_tn3270_negotiated)
+        self.assertFalse(self.telnet.is_tn3270e_negotiated)
+
+        self.assertEqual(self.telnet.device_name, 'LU1')
+
+    def test_tn3270_device_name_negotiation_second_device(self):
+        # Arrange
+        self.telnet = Telnet('IBM-3279-2-E')
+
+        responses = [
+            bytes.fromhex('ff fd 18'),
+            bytes.fromhex('ff fa 18 01 ff f0'),
+            bytes.fromhex('ff fa 18 01 ff f0'),
+            bytes.fromhex('ff fd 19'),
+            bytes.fromhex('ff fb 19'),
+            bytes.fromhex('ff fd 00'),
+            bytes.fromhex('ff fb 00')
+        ]
+
+        self.socket_mock.recv = Mock(side_effect=responses)
+
+        # Act
+        self.telnet.open('mainframe', 23, ['LU1', 'LU2'])
+
+        # Assert
+        self.assertTrue(self.telnet.is_tn3270_negotiated)
+        self.assertFalse(self.telnet.is_tn3270e_negotiated)
+
+        self.assertEqual(self.telnet.device_name, 'LU2')
+
+    def test_tn3270_device_name_negotiation_exhausted(self):
+        # Arrange
+        self.telnet = Telnet('IBM-3279-2-E')
+
+        responses = [
+            bytes.fromhex('ff fd 18'),
+            bytes.fromhex('ff fa 18 01 ff f0'),
+            bytes.fromhex('ff fa 18 01 ff f0'),
+            bytes.fromhex('ff fa 18 01 ff f0'),
+            bytes.fromhex('ff fd 19'),
+            bytes.fromhex('ff fb 19'),
+            bytes.fromhex('ff fd 00'),
+            bytes.fromhex('ff fb 00')
+        ]
+
+        self.socket_mock.recv = Mock(side_effect=responses)
+
+        # Act
+        self.telnet.open('mainframe', 23, ['LU1', 'LU2'])
+
+        # Assert
+        self.assertTrue(self.telnet.is_tn3270_negotiated)
+        self.assertFalse(self.telnet.is_tn3270e_negotiated)
+
+        self.assertIsNone(self.telnet.device_name)
+
+    def test_tn3270e_device_name_negotiation(self):
+        # Arrange
+        self.telnet = Telnet('IBM-3279-2-E')
+
+        responses = [
+            bytes.fromhex('ff fd 28'),
+            bytes.fromhex('ff fa 28 08 02 ff f0'),
+            bytes.fromhex('ff fa 28 02 04 49 42 4d 2d 33 32 37 38 2d 32 2d 45 01 4c 55 31 ff f0'),
+            bytes.fromhex('ff fa 28 03 04 ff f0')
+        ]
+
+        self.socket_mock.recv = Mock(side_effect=responses)
+
+        # Act
+        self.telnet.open('mainframe', 23, ['LU1'])
+
+        # Assert
+        self.assertTrue(self.telnet.is_tn3270_negotiated)
+        self.assertTrue(self.telnet.is_tn3270e_negotiated)
+
+        self.assertEqual(self.telnet.device_name, 'LU1')
+
+    def test_tn3270e_device_name_negotiation_second_device(self):
+        # Arrange
+        self.telnet = Telnet('IBM-3279-2-E')
+
+        responses = [
+            bytes.fromhex('ff fd 28'),
+            bytes.fromhex('ff fa 28 08 02 ff f0'),
+            bytes.fromhex('ff fa 28 02 06 03 ff f0'),
+            bytes.fromhex('ff fa 28 02 04 49 42 4d 2d 33 32 37 38 2d 32 2d 45 01 4c 55 32 ff f0'),
+            bytes.fromhex('ff fa 28 03 04 ff f0')
+        ]
+
+        self.socket_mock.recv = Mock(side_effect=responses)
+
+        # Act
+        self.telnet.open('mainframe', 23, ['LU1', 'LU2'])
+
+        # Assert
+        self.assertTrue(self.telnet.is_tn3270_negotiated)
+        self.assertTrue(self.telnet.is_tn3270e_negotiated)
+
+        self.assertEqual(self.telnet.device_name, 'LU2')
+
+    def test_device_name_negotiation_exhausted(self):
+        # Arrange
+        self.telnet = Telnet('IBM-3279-2-E')
+
+        responses = [
+            bytes.fromhex('ff fd 28'),
+            bytes.fromhex('ff fa 28 08 02 ff f0'),
+            bytes.fromhex('ff fa 28 02 06 03 ff f0'),
+            bytes.fromhex('ff fa 28 02 06 03 ff f0'),
+            bytes.fromhex('ff fd 18'),
+            bytes.fromhex('ff fa 18 01 ff f0'),
+            bytes.fromhex('ff fa 18 01 ff f0'),
+            bytes.fromhex('ff fa 18 01 ff f0'),
+            bytes.fromhex('ff fd 19'),
+            bytes.fromhex('ff fb 19'),
+            bytes.fromhex('ff fd 00'),
+            bytes.fromhex('ff fb 00')
+        ]
+
+        self.socket_mock.recv = Mock(side_effect=responses)
+
+        # Act
+        self.telnet.open('mainframe', 23, ['LU1', 'LU2'])
+
+        # Assert
+        self.assertTrue(self.telnet.is_tn3270_negotiated)
+        self.assertFalse(self.telnet.is_tn3270e_negotiated)
+
+        self.assertIsNone(self.telnet.device_name)
 
 class ReadMultipleTestCase(unittest.TestCase):
     def setUp(self):
@@ -284,3 +426,24 @@ class WriteTestCase(unittest.TestCase):
 
         # Assert
         telnet.socket.sendall.assert_called_with(bytes.fromhex('00 00 00 00 00 01 02 03 ff ff 04 05 ff ef'))
+
+class EncodeRFC1646TerminalTypeTestCase(unittest.TestCase):
+    def test_no_device_name(self):
+        self.assertEqual(encode_rfc1646_terminal_type('IBM-3279-2-E', None), bytes.fromhex('49 42 4d 2d 33 32 37 39 2d 32 2d 45'))
+
+    def test_device_name(self):
+        self.assertEqual(encode_rfc1646_terminal_type('IBM-3279-2-E', 'LU1'), bytes.fromhex('49 42 4d 2d 33 32 37 39 2d 32 2d 45 40 4c 55 31'))
+
+class EncodeRFC2355DeviceTypeTestCase(unittest.TestCase):
+    def test_no_device_name(self):
+        self.assertEqual(encode_rfc2355_device_type('IBM-3278-2-E', None), bytes.fromhex('49 42 4d 2d 33 32 37 38 2d 32 2d 45'))
+
+    def test_device_name(self):
+        self.assertEqual(encode_rfc2355_device_type('IBM-3278-2-E', 'LU1'), bytes.fromhex('49 42 4d 2d 33 32 37 38 2d 32 2d 45 01 4c 55 31'))
+
+class DecodeRFC2355DeviceTypeTestCase(unittest.TestCase):
+    def test_no_device_name(self):
+        self.assertEqual(decode_rfc2355_device_type(bytes.fromhex('49 42 4d 2d 33 32 37 38 2d 32 2d 45')), ('IBM-3278-2-E', None))
+
+    def test_device_name(self):
+        self.assertEqual(decode_rfc2355_device_type(bytes.fromhex('49 42 4d 2d 33 32 37 38 2d 32 2d 45 01 4c 55 31')), ('IBM-3278-2-E', 'LU1'))

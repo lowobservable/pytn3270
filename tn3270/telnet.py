@@ -38,6 +38,7 @@ class Telnet:
         self.socket_selector = None
         self.eof = None
 
+        self.device_names = None
         self.host_options = set()
         self.client_options = set()
         self.is_tn3270e_negotiated = False
@@ -47,8 +48,9 @@ class Telnet:
         self.buffer = bytearray()
         self.iac_buffer = bytearray()
         self.records = []
+        self.device_names_stack = None
 
-    def open(self, host, port, tn3270_negotiation_timeout=None, ssl_context=None, ssl_server_hostname=None):
+    def open(self, host, port, device_names=None, tn3270_negotiation_timeout=None, ssl_context=None, ssl_server_hostname=None):
         """Open the connection."""
         self.close()
 
@@ -63,6 +65,7 @@ class Telnet:
 
         self.eof = False
 
+        self.device_names = device_names
         self.host_options = set()
         self.client_options = set()
         self.is_tn3270e_negotiated = False
@@ -72,6 +75,7 @@ class Telnet:
         self.buffer = bytearray()
         self.iac_buffer = bytearray()
         self.records = []
+        self.devices_names_stack = None
 
         self._negotiate_tn3270(timeout=tn3270_negotiation_timeout)
 
@@ -256,7 +260,20 @@ class Telnet:
         if bytes_ == TTYPE + RFC1091_SEND:
             self.logger.debug('Received TTYPE SEND request')
 
-            terminal_type = self.terminal_type.encode('ascii')
+            # TN3270E and TTYPE negotation are supposed to be mutually exclusive.
+            if self.is_tn3270e_negotiated:
+                self.logger.warning('Unexpected TTYPE SEND request after TN3270E negotation')
+
+            self.device_name = None
+
+            if self.device_names_stack:
+                self.device_name = self.device_names_stack.pop(0)
+
+                self.logger.debug(f'Trying device name {self.device_name}...')
+            elif self.device_names_stack is not None:
+                self.logger.debug('Exhausted device names, continuing with no device name')
+
+            terminal_type = encode_rfc1646_terminal_type(self.terminal_type, self.device_name)
 
             self.socket.sendall(IAC + SB + TTYPE + RFC1091_IS + terminal_type + IAC + SE)
         elif bytes_.startswith(TN3270E):
@@ -266,30 +283,38 @@ class Telnet:
             self._handle_tn3270e_subnegotiation(bytes_[1:])
 
     def _handle_tn3270e_subnegotiation(self, bytes_):
+        # TN3270E and TTYPE negotation are supposed to be mutually exclusive.
+        if TTYPE in self.client_options:
+            self.logger.warning('Unexpected TN3270E negotiation after TTYPE')
+
         if bytes_ == RFC2355_SEND + RFC2355_DEVICE_TYPE:
             self.logger.debug('Received TN3270E SEND DEVICE-TYPE request')
 
-            device_type = self.terminal_type.replace('IBM-3279', 'IBM-3278').encode('ascii')
-
-            self.socket.sendall(IAC + SB + TN3270E + RFC2355_DEVICE_TYPE + RFC2355_REQUEST + device_type + IAC + SE)
+            self._send_tn3270e_device_type()
         elif bytes_.startswith(RFC2355_DEVICE_TYPE + RFC2355_IS):
             self.logger.debug('Received TN3270E DEVICE-TYPE response')
 
-            (device_type, device_name) = bytes_[2:].split(RFC2355_CONNECT)
-
-            self.device_type = device_type.decode('ascii')
-            self.device_name = device_name.decode('ascii')
+            (self.device_type, self.device_name) = decode_rfc2355_device_type(bytes_[2:])
 
             # Request basic TN3270E, no functions...
             self.socket.sendall(IAC + SB + TN3270E + RFC2355_FUNCTIONS + RFC2355_REQUEST + IAC + SE)
-
         elif bytes_.startswith(RFC2355_DEVICE_TYPE + RFC2355_REJECT):
             self.logger.debug('Received TN3270E DEVICE-TYPE REJECT response')
 
-            # TODO: Implement further DEVICE-TYPE negotiation...
-            self.logger.warning('TN3270E DEVICE-TYPE request rejected, complete negotiation not implemented')
+            self.device_name = None
 
-            self.socket.sendall(IAC + WONT + TN3270E)
+            # Try the next device name, or reset the stack for TTYPE negotation.
+            if self.device_names_stack:
+                self._send_tn3270e_device_type()
+            else:
+                if self.devices_names_stack is not None:
+                    self.logger.debug('Exhausted device names, continuing without TN3270E')
+                else:
+                    self.logger.debug('Continuing without TN3270E')
+
+                self._reset_device_names_stack()
+
+                self.socket.sendall(IAC + WONT + TN3270E)
         elif bytes_.startswith(RFC2355_FUNCTIONS + RFC2355_REQUEST):
             self.logger.debug('Received TN3270E FUNCTIONS request')
 
@@ -315,7 +340,27 @@ class Telnet:
 
                 self.is_tn3270e_negotiated = True
 
+    def _send_tn3270e_device_type(self):
+        device_type = self.terminal_type.replace('IBM-3279', 'IBM-3278')
+
+        self.device_name = None
+
+        if self.device_names_stack:
+            self.device_name = self.device_names_stack.pop(0)
+
+            self.logger.debug(f'Trying device name {self.device_name}...')
+
+        bytes_ = encode_rfc2355_device_type(device_type, self.device_name)
+
+        self.socket.sendall(IAC + SB + TN3270E + RFC2355_DEVICE_TYPE + RFC2355_REQUEST + bytes_ + IAC + SE)
+
+    def _reset_device_names_stack(self):
+        # Clone the device names as the stack will be mutated during negotiation.
+        self.device_names_stack = list(self.device_names) if self.device_names is not None else None
+
     def _negotiate_tn3270(self, timeout):
+        self._reset_device_names_stack()
+
         self._read_while(lambda: not self.is_tn3270_negotiated and not self.eof
                          and not self.buffer, timeout)
 
@@ -337,3 +382,27 @@ class Telnet:
 
     def __del__(self):
         self.close()
+
+def encode_rfc1646_terminal_type(terminal_type, device_name):
+    bytes_ = terminal_type.encode('ascii')
+
+    if device_name is not None:
+        bytes_ += f'@{device_name}'.encode('ascii')
+
+    return bytes_
+
+def encode_rfc2355_device_type(device_type, device_name):
+    bytes_ = device_type.encode('ascii')
+
+    if device_name is not None:
+        bytes_ += RFC2355_CONNECT + device_name.encode('ascii')
+
+    return bytes_
+
+def decode_rfc2355_device_type(bytes_):
+    elements = bytes_.split(RFC2355_CONNECT, 1)
+
+    device_type = elements[0].decode('ascii')
+    device_name = elements[1].decode('ascii') if len(elements) > 1 else None
+
+    return (device_type, device_name)
