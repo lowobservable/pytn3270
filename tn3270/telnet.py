@@ -3,6 +3,7 @@ tn3270.telnet
 ~~~~~~~~~~~~~
 """
 
+from enum import IntEnum
 import time
 import logging
 import socket
@@ -25,14 +26,26 @@ RFC2355_REJECT = b'\x06'
 RFC2355_REQUEST = b'\x07'
 RFC2355_SEND = b'\x08'
 
+class TN3270EFunction(IntEnum):
+    BIND_IMAGE = 0x00
+    DATA_STREAM_CTL = 0x01
+    RESPONSES = 0x02
+    SCS_CTL_CODES = 0x03
+    SYSREQ = 0x04
+
 class Telnet:
     """TN3270 client."""
 
-    def __init__(self, terminal_type, is_tn3270e_enabled=True):
+    def __init__(self, terminal_type, is_tn3270e_enabled=True, tn3270e_functions=None):
         self.logger = logging.getLogger(__name__)
 
         self.terminal_type = terminal_type
         self.is_tn3270e_enabled = is_tn3270e_enabled
+
+        if tn3270e_functions is not None and not is_tn3270e_enabled:
+            raise ValueError('TN3270E functions not valid if TN3270E is not enabled')
+
+        self.requested_tn3270e_functions = set(tn3270e_functions if tn3270e_functions is not None else [])
 
         self.socket = None
         self.socket_selector = None
@@ -44,6 +57,7 @@ class Telnet:
         self.is_tn3270e_negotiated = False
         self.device_type = None
         self.device_name = None
+        self.tn3270e_functions = set()
 
         self.buffer = bytearray()
         self.iac_buffer = bytearray()
@@ -71,6 +85,7 @@ class Telnet:
         self.is_tn3270e_negotiated = False
         self.device_type = None
         self.device_name = None
+        self.tn3270e_functions = set()
 
         self.buffer = bytearray()
         self.iac_buffer = bytearray()
@@ -296,8 +311,7 @@ class Telnet:
 
             (self.device_type, self.device_name) = decode_rfc2355_device_type(bytes_[2:])
 
-            # Request basic TN3270E, no functions...
-            self.socket.sendall(IAC + SB + TN3270E + RFC2355_FUNCTIONS + RFC2355_REQUEST + IAC + SE)
+            self._send_tn3270e_functions(RFC2355_REQUEST, self.requested_tn3270e_functions)
         elif bytes_.startswith(RFC2355_DEVICE_TYPE + RFC2355_REJECT):
             self.logger.debug('Received TN3270E DEVICE-TYPE REJECT response')
 
@@ -318,27 +332,41 @@ class Telnet:
         elif bytes_.startswith(RFC2355_FUNCTIONS + RFC2355_REQUEST):
             self.logger.debug('Received TN3270E FUNCTIONS request')
 
-            functions = set(bytes_[2:])
+            functions = set([TN3270EFunction(byte_) for byte_ in bytes_[2:]])
 
-            if functions:
-                self.socket.sendall(IAC + SB + TN3270E + RFC2355_FUNCTIONS + RFC2355_REQUEST + IAC + SE)
-            else:
+            if functions.issubset(self.requested_tn3270e_functions):
+                self.tn3270e_functions = functions
+
+                self._send_tn3270e_functions(RFC2355_IS, functions)
+
                 self.logger.debug('TN3270E negotiation complete')
 
                 self.is_tn3270e_negotiated = True
+            else:
+                common_functions = functions.intersection(self.requested_tn3270e_functions)
+
+                self._send_tn3270e_functions(RFC2355_REQUEST, common_functions)
         elif bytes_.startswith(RFC2355_FUNCTIONS + RFC2355_IS):
             self.logger.debug('Received TN3270E FUNCTIONS response')
 
-            functions = set(bytes_[2:])
+            functions = set([TN3270EFunction(byte_) for byte_ in bytes_[2:]])
 
-            if functions:
-                self.logger.warning('TN3270E FUNCTIONS response contains unrequested functions, aborting TN3270E negotiation')
+            if functions.issubset(self.requested_tn3270e_functions):
+                self.tn3270e_functions = functions
 
-                self.socket.sendall(IAC + WONT + TN3270E)
-            else:
+                self._send_tn3270e_functions(RFC2355_IS, functions)
+
                 self.logger.debug('TN3270E negotiation complete')
 
                 self.is_tn3270e_negotiated = True
+            else:
+                self.logger.warning('TN3270E FUNCTIONS response contains unrequested functions, aborting TN3270E negotiation')
+
+                self.socket.sendall(IAC + WONT + TN3270E)
+
+    def _reset_device_names_stack(self):
+        # Clone the device names as the stack will be mutated during negotiation.
+        self.device_names_stack = list(self.device_names) if self.device_names is not None else None
 
     def _send_tn3270e_device_type(self):
         device_type = self.terminal_type.replace('IBM-3279', 'IBM-3278')
@@ -354,9 +382,10 @@ class Telnet:
 
         self.socket.sendall(IAC + SB + TN3270E + RFC2355_DEVICE_TYPE + RFC2355_REQUEST + bytes_ + IAC + SE)
 
-    def _reset_device_names_stack(self):
-        # Clone the device names as the stack will be mutated during negotiation.
-        self.device_names_stack = list(self.device_names) if self.device_names is not None else None
+    def _send_tn3270e_functions(self, command, functions):
+        bytes_ = bytes(functions)
+
+        self.socket.sendall(IAC + SB + TN3270E + RFC2355_FUNCTIONS + command + bytes_ + IAC + SE)
 
     def _negotiate_tn3270(self, timeout):
         self._reset_device_names_stack()
