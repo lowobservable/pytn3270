@@ -4,6 +4,8 @@ tn3270.telnet
 """
 
 from enum import IntEnum
+from collections import namedtuple
+import struct
 import time
 import logging
 import socket
@@ -26,12 +28,33 @@ RFC2355_REJECT = b'\x06'
 RFC2355_REQUEST = b'\x07'
 RFC2355_SEND = b'\x08'
 
+TN3270EMessageHeader = namedtuple('TN3270EMessageHeader', ['data_type', 'request_flag', 'response_flag', 'sequence_number'])
+
 class TN3270EFunction(IntEnum):
     BIND_IMAGE = 0x00
     DATA_STREAM_CTL = 0x01
     RESPONSES = 0x02
     SCS_CTL_CODES = 0x03
     SYSREQ = 0x04
+
+class TN3270EDataType(IntEnum):
+    DATA_3270 = 0x00
+    DATA_SCS = 0x01
+    RESPONSE = 0x02
+    BIND_IMAGE = 0x03
+    UNBIND = 0x04
+    DATA_NVT = 0x05
+    REQUEST = 0x06
+    DATA_SSCP_LU = 0x07
+    PRINT_EOJ = 0x08
+
+class TN3270ERequestFlag(IntEnum):
+    ERROR_CONDITION_CLEARED = 0x00
+
+class TN3270EResponseFlag(IntEnum):
+    NO = 0x00
+    ERROR = 0x01
+    ALWAYS = 0x02
 
 class Telnet:
     """TN3270 client."""
@@ -133,6 +156,34 @@ class Telnet:
             record = bytes([0x00, 0x00, 0x00, 0x00, 0x00]) + record
 
         self.socket.sendall(record.replace(IAC, IAC * 2) + IAC + RFC855_EOR)
+
+    def send_tn3270e_positive_response(self, sequence_number):
+        """Send a TN3270E positive response message."""
+        if not self.is_tn3270e_negotiated:
+            raise Exception('TN3270E mode not negotiated')
+
+        if TN3270EFunction.RESPONSES not in self.tn3270e_functions:
+            raise Exception('TN3270E responses not negotiated')
+
+        self.logger.debug(f'Sending TN3270E positive response for {sequence_number}')
+
+        bytes_ = struct.pack('!H', sequence_number)
+
+        self.socket.sendall(b'\x02\x00\x00' + bytes_.replace(IAC, IAC * 2) + b'\x00' + IAC + RFC855_EOR)
+
+    def send_tn3270e_negative_response(self, sequence_number, reason):
+        """Send a TN3270E negative response message."""
+        if not self.is_tn3270e_negotiated:
+            raise Exception('TN3270E mode not negotiated')
+
+        if TN3270EFunction.RESPONSES not in self.tn3270e_functions:
+            raise Exception('TN3270E responses not negotiated')
+
+        self.logger.debug(f'Sending TN3270E negative response for {sequence_number}, reason = {reason}')
+
+        bytes_ = struct.pack('!HB', sequence_number, reason)
+
+        self.socket.sendall(b'\x02\x00\x01' + bytes_.replace(IAC, IAC * 2) + IAC + RFC855_EOR)
 
     @property
     def is_tn3270_negotiated(self):
@@ -400,14 +451,12 @@ class Telnet:
         self.logger.debug('Received EOR')
 
         if self.is_tn3270e_negotiated:
-            data_type = record[0]
+            header = decode_tn3270e_message_header(record[:5])
+            data = record[5:]
 
-            if data_type == 0x00:
-                self.records.append(record[5:])
-            else:
-                self.logger.warning(f'Unsupported TN3270E DATA-TYPE 0x{data_type:02x}')
+            self.records.append((data, header))
         else:
-            self.records.append(record)
+            self.records.append((record, None))
 
     def __del__(self):
         self.close()
@@ -435,3 +484,14 @@ def decode_rfc2355_device_type(bytes_):
     device_name = elements[1].decode('ascii') if len(elements) > 1 else None
 
     return (device_type, device_name)
+
+def decode_tn3270e_message_header(bytes_):
+    (data_type, request_flag, response_flag, sequence_number) = struct.unpack('!BBBH', bytes_)
+
+    data_type = TN3270EDataType(data_type)
+
+    request_flag = TN3270ERequestFlag(request_flag) if data_type == TN3270EDataType.REQUEST else None
+
+    response_flag = TN3270EResponseFlag(response_flag) if data_type in (TN3270EDataType.DATA_3270, TN3270EDataType.DATA_SCS) else None
+
+    return TN3270EMessageHeader(data_type, request_flag, response_flag, sequence_number)

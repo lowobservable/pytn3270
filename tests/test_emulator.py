@@ -5,7 +5,7 @@ import string
 
 import context
 
-from tn3270.telnet import Telnet
+from tn3270.telnet import Telnet, TN3270EMessageHeader, TN3270EDataType, TN3270EResponseFlag
 from tn3270.emulator import Emulator, AttributeCell, CharacterCell, ProtectedCellOperatorError, FieldOverflowOperatorError
 from tn3270.datastream import AID
 
@@ -44,7 +44,7 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_write(self):
         # Arrange
-        self.stream.read_multiple = Mock(return_value=[bytes.fromhex('01 c3 11 4b f0 1d f8 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4')])
+        self.stream.read_multiple = Mock(return_value=[(bytes.fromhex('01 c3 11 4b f0 1d f8 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'), None)])
 
         # Act and assert
         self.assertTrue(self.emulator.update())
@@ -54,7 +54,7 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_write_wrap(self):
         # Arrange
-        self.stream.read_multiple = Mock(return_value=[bytes.fromhex('01 c3 11 07 7c c1 c2 c3 c4 c5 c6 c7 c8')])
+        self.stream.read_multiple = Mock(return_value=[(bytes.fromhex('01 c3 11 07 7c c1 c2 c3 c4 c5 c6 c7 c8'), None)])
 
         # Act and assert
         self.assertTrue(self.emulator.update())
@@ -66,7 +66,7 @@ class UpdateTestCase(unittest.TestCase):
         # Arrange
         self.emulator.alarm = Mock()
 
-        self.stream.read_multiple = Mock(return_value=[bytes.fromhex('01 c7')])
+        self.stream.read_multiple = Mock(return_value=[(bytes.fromhex('01 c7'), None)])
 
         # Act
         self.emulator.update()
@@ -76,7 +76,7 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_read_buffer(self):
         # Arrange
-        self.stream.read_multiple = Mock(side_effect=[[SCREEN1], [bytes.fromhex('02')]])
+        self.stream.read_multiple = Mock(side_effect=[[(SCREEN1, None)], [(bytes.fromhex('02'), None)]])
 
         self.emulator.update()
 
@@ -105,14 +105,14 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_nop(self):
         # Arrange
-        self.stream.read_multiple = Mock(return_value=[bytes.fromhex('03')])
+        self.stream.read_multiple = Mock(return_value=[(bytes.fromhex('03'), None)])
 
         # Act
         self.emulator.update()
 
     def test_erase_write_screen1(self):
         # Arrange
-        self.stream.read_multiple = Mock(return_value=[SCREEN1])
+        self.stream.read_multiple = Mock(return_value=[(SCREEN1, None)])
 
         # Act
         self.emulator.update()
@@ -212,7 +212,7 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_erase_write_screen2(self):
         # Arrange
-        self.stream.read_multiple = Mock(return_value=[SCREEN2])
+        self.stream.read_multiple = Mock(return_value=[(SCREEN2, None)])
 
         # Act
         self.emulator.update()
@@ -234,7 +234,7 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_read_modified(self):
         # Arrange
-        self.stream.read_multiple = Mock(side_effect=[[SCREEN1], [bytes.fromhex('06')]])
+        self.stream.read_multiple = Mock(side_effect=[[(SCREEN1, None)], [(bytes.fromhex('06'), None)]])
 
         self.emulator.update()
 
@@ -257,7 +257,7 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_erase_write_alternate_screen1(self):
         # Arrange
-        self.stream.read_multiple = Mock(return_value=[bytes([0x0d, *SCREEN1[1:]])])
+        self.stream.read_multiple = Mock(return_value=[(bytes([0x0d, *SCREEN1[1:]]), None)])
 
         # Act
         self.emulator.update()
@@ -271,7 +271,7 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_read_modified_all(self):
         # Arrange
-        self.stream.read_multiple = Mock(side_effect=[[SCREEN1], [bytes.fromhex('0e')]])
+        self.stream.read_multiple = Mock(side_effect=[[(SCREEN1, None)], [(bytes.fromhex('0e'), None)]])
 
         self.emulator.update()
 
@@ -294,7 +294,7 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_erase_all_unprotected(self):
         # Arrange
-        self.stream.read_multiple = Mock(side_effect=[[SCREEN1], [bytes.fromhex('0f')]])
+        self.stream.read_multiple = Mock(side_effect=[[(SCREEN1, None)], [(bytes.fromhex('0f'), None)]])
 
         self.emulator.update()
 
@@ -333,13 +333,82 @@ class UpdateTestCase(unittest.TestCase):
 
     def test_write_structured_field_read_partition_query(self):
         # Arrange
-        self.stream.read_multiple = Mock(return_value=[bytes.fromhex('11 00 05 01 ff 02')])
+        self.stream.read_multiple = Mock(return_value=[(bytes.fromhex('11 00 05 01 ff 02'), None)])
 
         # Act
         self.emulator.update()
 
         # Assert
         self.stream.write.assert_called_with(bytes.fromhex('88 00 0b 81 80 80 81 84 86 87 88 a6 00 17 81 81 01 00 00 50 00 2b 01 00 0a 02 e5 00 02 00 6f 09 0c 0d 70 00 08 81 84 01 0d 70 00 00 16 81 86 00 08 00 f4 f1 f1 f2 f2 f3 f3 f4 f4 f5 f5 f6 f6 f7 f7 00 0d 81 87 04 00 f0 f1 f1 f2 f2 f4 f4 00 06 81 88 00 01 00 11 81 a6 00 00 0b 01 00 00 50 00 18 00 50 00 2b'))
+
+    def test_tn3270e_successful_with_no_response_flag(self):
+        # Arrange
+        self.stream.read_multiple = Mock(return_value=[(bytes.fromhex('01 c3 11 4b f0 1d f8 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'), TN3270EMessageHeader(TN3270EDataType.DATA_3270, None, TN3270EResponseFlag.NO, 123))])
+
+        # Act
+        self.emulator.update()
+
+        # Assert
+        self.stream.send_tn3270e_positive_response.assert_not_called()
+
+    def test_tn3270e_error_with_no_response_flag(self):
+        # Arrange
+        self.stream.read_multiple = Mock(return_value=[(bytes.fromhex('01 c3 11 4b f0 1d f8 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'), TN3270EMessageHeader(TN3270EDataType.DATA_3270, None, TN3270EResponseFlag.NO, 123))])
+
+        self.emulator._execute = Mock(side_effect=Exception('Error'))
+
+        # Act
+        with self.assertRaises(Exception):
+            self.emulator.update()
+
+        # Assert
+        self.stream.send_tn3270e_negative_response.assert_not_called()
+
+    def test_tn3270e_successful_with_error_response_flag(self):
+        # Arrange
+        self.stream.read_multiple = Mock(return_value=[(bytes.fromhex('01 c3 11 4b f0 1d f8 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'), TN3270EMessageHeader(TN3270EDataType.DATA_3270, None, TN3270EResponseFlag.ERROR, 123))])
+
+        # Act
+        self.emulator.update()
+
+        # Assert
+        self.stream.send_tn3270e_positive_response.assert_not_called()
+
+    def test_tn3270e_error_with_error_response_flag(self):
+        # Arrange
+        self.stream.read_multiple = Mock(return_value=[(bytes.fromhex('01 c3 11 4b f0 1d f8 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'), TN3270EMessageHeader(TN3270EDataType.DATA_3270, None, TN3270EResponseFlag.ERROR, 123))])
+
+        self.emulator._execute = Mock(side_effect=Exception('Error'))
+
+        # Act
+        with self.assertRaises(Exception):
+            self.emulator.update()
+
+        # Assert
+        self.stream.send_tn3270e_negative_response.assert_called_once_with(123, 0)
+
+    def test_tn3270e_successful_with_always_response_flag(self):
+        # Arrange
+        self.stream.read_multiple = Mock(return_value=[(bytes.fromhex('01 c3 11 4b f0 1d f8 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'), TN3270EMessageHeader(TN3270EDataType.DATA_3270, None, TN3270EResponseFlag.ALWAYS, 123))])
+
+        # Act
+        self.emulator.update()
+
+        # Assert
+        self.stream.send_tn3270e_positive_response.assert_called_once_with(123)
+
+    def test_tn3270e_error_with_always_response_flag(self):
+        # Arrange
+        self.stream.read_multiple = Mock(return_value=[(bytes.fromhex('01 c3 11 4b f0 1d f8 c8 c5 d3 d3 d6 40 e6 d6 d9 d3 c4'), TN3270EMessageHeader(TN3270EDataType.DATA_3270, None, TN3270EResponseFlag.ALWAYS, 123))])
+
+        self.emulator._execute = Mock(side_effect=Exception('Error'))
+
+        # Act
+        with self.assertRaises(Exception):
+            self.emulator.update()
+
+        # Assert
+        self.stream.send_tn3270e_negative_response.assert_called_once_with(123, 0)
 
 class AidTestCase(unittest.TestCase):
     def setUp(self):
@@ -351,7 +420,7 @@ class AidTestCase(unittest.TestCase):
 
     def test_screen1_short_read(self):
         # Arrange
-        self.stream.read_multiple = Mock(return_value=[SCREEN1])
+        self.stream.read_multiple = Mock(return_value=[(SCREEN1, None)])
 
         self.emulator.update()
 
@@ -370,7 +439,7 @@ class AidTestCase(unittest.TestCase):
 
     def test_screen1_long_read(self):
         # Arrange
-        self.stream.read_multiple = Mock(return_value=[SCREEN1])
+        self.stream.read_multiple = Mock(return_value=[(SCREEN1, None)])
 
         self.emulator.update()
 
@@ -389,7 +458,7 @@ class AidTestCase(unittest.TestCase):
 
     def test_screen2_long_read(self):
         # Arrange
-        self.stream.read_multiple = Mock(return_value=[SCREEN2])
+        self.stream.read_multiple = Mock(return_value=[(SCREEN2, None)])
 
         self.emulator.update()
 
@@ -408,7 +477,7 @@ class AidTestCase(unittest.TestCase):
 
     def test_clear(self):
         # Arrange
-        self.stream.read_multiple = Mock(return_value=[SCREEN1])
+        self.stream.read_multiple = Mock(return_value=[(SCREEN1, None)])
 
         self.emulator.update()
 
@@ -435,7 +504,7 @@ class TabTestCase(unittest.TestCase):
     def setUp(self):
         self.stream = create_autospec(Telnet, instance=True)
 
-        self.stream.read_multiple = Mock(return_value=[SCREEN1])
+        self.stream.read_multiple = Mock(return_value=[(SCREEN1, None)])
 
         self.emulator = Emulator(self.stream, 24, 80)
 
@@ -523,7 +592,7 @@ class NewlineTestCase(unittest.TestCase):
     def setUp(self):
         self.stream = create_autospec(Telnet, instance=True)
 
-        self.stream.read_multiple = Mock(return_value=[SCREEN3])
+        self.stream.read_multiple = Mock(return_value=[(SCREEN3, None)])
 
         self.emulator = Emulator(self.stream, 24, 80)
 
@@ -579,7 +648,7 @@ class HomeTestCase(unittest.TestCase):
     def setUp(self):
         self.stream = create_autospec(Telnet, instance=True)
 
-        self.stream.read_multiple = Mock(return_value=[SCREEN1])
+        self.stream.read_multiple = Mock(return_value=[(SCREEN1, None)])
 
         self.emulator = Emulator(self.stream, 24, 80)
 
@@ -745,7 +814,7 @@ class InputTestCase(unittest.TestCase):
 
         self.emulator = Emulator(self.stream, 24, 80)
 
-        self.stream.read_multiple = Mock(return_value=[SCREEN1])
+        self.stream.read_multiple = Mock(return_value=[(SCREEN1, None)])
 
         self.emulator.update()
 
@@ -811,7 +880,7 @@ class InputTestCase(unittest.TestCase):
 
         self.emulator = Emulator(self.stream, 24, 80)
 
-        self.stream.read_multiple = Mock(return_value=[SCREEN2])
+        self.stream.read_multiple = Mock(return_value=[(SCREEN2, None)])
 
         self.emulator.update()
 
@@ -885,7 +954,7 @@ class DupTestCase(unittest.TestCase):
 
         self.emulator = Emulator(self.stream, 24, 80)
 
-        self.stream.read_multiple = Mock(return_value=[SCREEN1])
+        self.stream.read_multiple = Mock(return_value=[(SCREEN1, None)])
 
         self.emulator.update()
 
@@ -923,7 +992,7 @@ class BackspaceTestCase(unittest.TestCase):
 
         self.emulator = Emulator(self.stream, 24, 80)
 
-        self.stream.read_multiple = Mock(return_value=[SCREEN1])
+        self.stream.read_multiple = Mock(return_value=[(SCREEN1, None)])
 
         self.emulator.update()
 
@@ -1007,7 +1076,7 @@ class DeleteTestCase(unittest.TestCase):
 
         self.emulator = Emulator(self.stream, 24, 80)
 
-        self.stream.read_multiple = Mock(return_value=[SCREEN1])
+        self.stream.read_multiple = Mock(return_value=[(SCREEN1, None)])
 
         self.emulator.update()
 
@@ -1077,7 +1146,7 @@ class EraseEndOfFieldTestCase(unittest.TestCase):
 
         self.emulator = Emulator(self.stream, 24, 80)
 
-        self.stream.read_multiple = Mock(return_value=[SCREEN1])
+        self.stream.read_multiple = Mock(return_value=[(SCREEN1, None)])
 
         self.emulator.update()
 
@@ -1146,7 +1215,7 @@ class EraseInputTestCase(unittest.TestCase):
 
         emulator = Emulator(stream, 24, 80)
 
-        stream.read_multiple = Mock(return_value=[SCREEN1])
+        stream.read_multiple = Mock(return_value=[(SCREEN1, None)])
 
         emulator.update()
 
@@ -1183,7 +1252,7 @@ class IsFormattedTestCase(unittest.TestCase):
 
     def test_formatted(self):
         # Arrange
-        self.stream.read_multiple = Mock(return_value=[SCREEN1])
+        self.stream.read_multiple = Mock(return_value=[(SCREEN1, None)])
 
         self.emulator.update()
 
@@ -1192,7 +1261,7 @@ class IsFormattedTestCase(unittest.TestCase):
 
     def test_unformatted(self):
         # Arrange
-        self.stream.read_multiple = Mock(return_value=[SCREEN4])
+        self.stream.read_multiple = Mock(return_value=[(SCREEN4, None)])
 
         self.emulator.update()
 

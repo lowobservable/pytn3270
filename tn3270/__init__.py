@@ -1,6 +1,12 @@
 from .__about__ import __version__
 
-from .telnet import Telnet, TN3270EFunction
+from .telnet import (
+    Telnet,
+    TN3270EFunction,
+    TN3270EDataType,
+    TN3270ERequestFlag,
+    TN3270EResponseFlag
+)
 
 from .datastream import AID
 

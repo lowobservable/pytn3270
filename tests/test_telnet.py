@@ -6,7 +6,7 @@ import selectors
 from selectors import BaseSelector
 import ssl
 
-from tn3270.telnet import Telnet, TN3270EFunction, encode_rfc1646_terminal_type, encode_rfc2355_device_type, decode_rfc2355_device_type
+from tn3270.telnet import Telnet, TN3270EFunction, TN3270EMessageHeader, TN3270EDataType, TN3270EResponseFlag, encode_rfc1646_terminal_type, encode_rfc2355_device_type, decode_rfc2355_device_type
 
 class OpenTestCase(unittest.TestCase):
     def setUp(self):
@@ -467,21 +467,21 @@ class ReadMultipleTestCase(unittest.TestCase):
         self.telnet.socket.recv = Mock(return_value=bytes.fromhex('01 02 03 ff ef 04 05 06 ff ef'))
 
         # Act and assert
-        self.assertEqual(self.telnet.read_multiple(), [bytes.fromhex('01 02 03'), bytes.fromhex('04 05 06')])
+        self.assertEqual(self.telnet.read_multiple(), [(bytes.fromhex('01 02 03'), None), (bytes.fromhex('04 05 06'), None)])
 
     def test_single_record_spans_multiple_recv(self):
         # Arrange
         self.telnet.socket.recv = Mock(side_effect=[bytes.fromhex('01 02 03'), bytes.fromhex('04 05 06 ff ef')])
 
         # Act and assert
-        self.assertEqual(self.telnet.read_multiple(), [bytes.fromhex('01 02 03 04 05 06')])
+        self.assertEqual(self.telnet.read_multiple(), [(bytes.fromhex('01 02 03 04 05 06'), None)])
 
     def test_limit(self):
         # Arrange
         self.telnet.socket.recv = Mock(return_value=bytes.fromhex('01 02 03 ff ef 04 05 06 ff ef'))
 
         # Act and assert
-        self.assertEqual(self.telnet.read_multiple(limit=1), [bytes.fromhex('01 02 03')])
+        self.assertEqual(self.telnet.read_multiple(limit=1), [(bytes.fromhex('01 02 03'), None)])
 
     def test_timeout(self):
         # Arrange
@@ -523,7 +523,7 @@ class ReadMultipleTestCase(unittest.TestCase):
         self.telnet.socket.recv = Mock(return_value=bytes.fromhex('00 00 00 00 00 01 02 03 ff ef'))
 
         # Act and assert
-        self.assertEqual(self.telnet.read_multiple(), [bytes.fromhex('01 02 03')])
+        self.assertEqual(self.telnet.read_multiple(), [(bytes.fromhex('01 02 03'), TN3270EMessageHeader(TN3270EDataType.DATA_3270, None, TN3270EResponseFlag.NO, 0))])
 
 class WriteTestCase(unittest.TestCase):
     def test_basic_tn3270(self):
@@ -553,6 +553,88 @@ class WriteTestCase(unittest.TestCase):
 
         # Assert
         telnet.socket.sendall.assert_called_with(bytes.fromhex('00 00 00 00 00 01 02 03 ff ff 04 05 ff ef'))
+
+class SendTN3270EPositiveResponse(unittest.TestCase):
+    def test(self):
+        # Arrange
+        telnet = Telnet('IBM-3279-2-E')
+
+        telnet.socket = create_autospec(socket, instance=True)
+
+        telnet.is_tn3270e_negotiated = True
+        telnet.tn3270e_functions = set([TN3270EFunction.RESPONSES])
+
+        # Act
+        telnet.send_tn3270e_positive_response(255)
+
+        # Assert
+        telnet.socket.sendall.assert_called_with(bytes.fromhex('02 00 00 00 ff ff 00 ff ef'))
+
+    def test_tn3270e_not_negotiated(self):
+        # Arrange
+        telnet = Telnet('IBM-3279-2-E')
+
+        telnet.socket = create_autospec(socket, instance=True)
+
+        telnet.is_tn3270e_negotiated = False
+
+        # Act and assert
+        with self.assertRaisesRegex(Exception, 'TN3270E mode not negotiated'):
+            telnet.send_tn3270e_positive_response(255)
+
+    def test_tn3270e_not_negotiated(self):
+        # Arrange
+        telnet = Telnet('IBM-3279-2-E')
+
+        telnet.socket = create_autospec(socket, instance=True)
+
+        telnet.is_tn3270e_negotiated = True
+        telnet.tn3270e_functions = set()
+
+        # Act and assert
+        with self.assertRaisesRegex(Exception, 'TN3270E responses not negotiated'):
+            telnet.send_tn3270e_positive_response(255)
+
+class SendTN3270ENegativeResponse(unittest.TestCase):
+    def test(self):
+        # Arrange
+        telnet = Telnet('IBM-3279-2-E')
+
+        telnet.socket = create_autospec(socket, instance=True)
+
+        telnet.is_tn3270e_negotiated = True
+        telnet.tn3270e_functions = set([TN3270EFunction.RESPONSES])
+
+        # Act
+        telnet.send_tn3270e_negative_response(255, 0x00)
+
+        # Assert
+        telnet.socket.sendall.assert_called_with(bytes.fromhex('02 00 01 00 ff ff 00 ff ef'))
+
+    def test_tn3270e_not_negotiated(self):
+        # Arrange
+        telnet = Telnet('IBM-3279-2-E')
+
+        telnet.socket = create_autospec(socket, instance=True)
+
+        telnet.is_tn3270e_negotiated = False
+
+        # Act and assert
+        with self.assertRaisesRegex(Exception, 'TN3270E mode not negotiated'):
+            telnet.send_tn3270e_negative_response(255, 0x00)
+
+    def test_tn3270e_not_negotiated(self):
+        # Arrange
+        telnet = Telnet('IBM-3279-2-E')
+
+        telnet.socket = create_autospec(socket, instance=True)
+
+        telnet.is_tn3270e_negotiated = True
+        telnet.tn3270e_functions = set()
+
+        # Act and assert
+        with self.assertRaisesRegex(Exception, 'TN3270E responses not negotiated'):
+            telnet.send_tn3270e_negative_response(255, 0x00)
 
 class EncodeRFC1646TerminalTypeTestCase(unittest.TestCase):
     def test_no_device_name(self):

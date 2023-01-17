@@ -18,6 +18,7 @@ from .attributes import Attribute, AllExtendedAttribute, \
 from .structured_fields import StructuredField, ReadPartitionType, \
                                QueryListRequestType, QueryCode
 from .ebcdic import DUP, FM
+from .telnet import TN3270EDataType, TN3270EResponseFlag
 
 class CharacterSet(Enum):
     """Display cell character set."""
@@ -135,21 +136,36 @@ class Emulator:
 
     def update(self, **kwargs):
         """Read and execute outbound messages."""
-        if self.logger.isEnabledFor(logging.DEBUG):
-            self.logger.debug('Update')
+        self.logger.debug('Update')
 
         records = self.stream.read_multiple(**kwargs)
 
         if not records:
             return False
 
-        for bytes_ in records:
+        for (bytes_, tn3270e) in records:
             if self.logger.isEnabledFor(logging.DEBUG):
-                self.logger.debug(f'\tRecord = {bytes_}')
+                self.logger.debug(f'\tRecord  = {bytes_}')
+                self.logger.debug(f'\tTN3270E = {tn3270e}')
 
-            (command, *options) = parse_outbound_message(bytes_)
+            if tn3270e and tn3270e.data_type != TN3270EDataType.DATA_3270:
+                self.logger.warning(f'Unsupported TN3270E DATA-TYPE {tn3270e.data_type}')
+                continue
 
-            self._execute(command, *options)
+            try:
+                (command, *options) = parse_outbound_message(bytes_)
+
+                self._execute(command, *options)
+            except:
+                if tn3270e and tn3270e.response_flag in [TN3270EResponseFlag.ERROR, TN3270EResponseFlag.ALWAYS]:
+                    # TODO: Distinguish between invalid command ("command reject") and invalid
+                    # address or order sequence ("operation check").
+                    self.stream.send_tn3270e_negative_response(tn3270e.sequence_number, 0x00)
+
+                raise
+
+            if tn3270e and tn3270e.response_flag == TN3270EResponseFlag.ALWAYS:
+                self.stream.send_tn3270e_positive_response(tn3270e.sequence_number)
 
         return True
 
