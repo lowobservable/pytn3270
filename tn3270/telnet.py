@@ -113,7 +113,7 @@ class Telnet:
         self.buffer = bytearray()
         self.iac_buffer = bytearray()
         self.records = []
-        self.devices_names_stack = None
+        self.device_names_stack = None
 
         self._negotiate_tn3270(timeout=tn3270_negotiation_timeout)
 
@@ -372,7 +372,7 @@ class Telnet:
             if self.device_names_stack:
                 self._send_tn3270e_device_type()
             else:
-                if self.devices_names_stack is not None:
+                if self.device_names_stack is not None:
                     self.logger.debug('Exhausted device names, continuing without TN3270E')
                 else:
                     self.logger.debug('Continuing without TN3270E')
