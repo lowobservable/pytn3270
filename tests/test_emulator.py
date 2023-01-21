@@ -122,7 +122,7 @@ class UpdateTestCase(unittest.TestCase):
 
         self.assertEqual(self.emulator.cursor_address, 504)
 
-        fields = self.emulator.get_fields()
+        fields = self.emulator.get_fields(protected=False)
 
         self.assertEqual(len(fields), 13)
 
@@ -220,7 +220,7 @@ class UpdateTestCase(unittest.TestCase):
         # Assert
         self.assertFalse(self.emulator.alternate)
 
-        fields = self.emulator.get_fields()
+        fields = self.emulator.get_fields(protected=False)
 
         self.assertEqual(len(fields), 1)
 
@@ -265,7 +265,7 @@ class UpdateTestCase(unittest.TestCase):
         # Assert
         self.assertTrue(self.emulator.alternate)
 
-        fields = self.emulator.get_fields()
+        fields = self.emulator.get_fields(protected=False)
 
         self.assertEqual(len(fields), 13)
 
@@ -308,7 +308,7 @@ class UpdateTestCase(unittest.TestCase):
 
         self.assertEqual(self.emulator.cursor_address, 525)
 
-        fields = self.emulator.get_fields()
+        fields = self.emulator.get_fields(protected=False)
 
         self.assertTrue(fields[0][2].modified)
         self.assertEqual(self.emulator.get_bytes(fields[0][0], fields[0][1]), bytes.fromhex('0000000000c1c2c3c4c5'))
@@ -320,7 +320,7 @@ class UpdateTestCase(unittest.TestCase):
         self.emulator.update()
 
         # Assert
-        fields = self.emulator.get_fields()
+        fields = self.emulator.get_fields(protected=False)
 
         self.assertFalse(fields[0][2].modified)
         self.assertEqual(self.emulator.get_bytes(fields[0][0], fields[0][1]), bytes.fromhex('00000000000000000000'))
@@ -884,7 +884,7 @@ class InputTestCase(unittest.TestCase):
 
         self.emulator.update()
 
-        fields = self.emulator.get_fields()
+        fields = self.emulator.get_fields(protected=False)
 
         self.assertEqual(len(fields), 1)
 
@@ -1224,7 +1224,7 @@ class EraseInputTestCase(unittest.TestCase):
         for character in 'ABCDEFGHIJ'.encode('ibm037'):
             emulator.input(character)
 
-        fields = emulator.get_fields()
+        fields = emulator.get_fields(protected=False)
 
         self.assertTrue(fields[0][2].modified)
         self.assertEqual(emulator.get_bytes(fields[0][0], fields[0][1]), bytes.fromhex('0000000000c1c2c3c4c5'))
@@ -1236,7 +1236,7 @@ class EraseInputTestCase(unittest.TestCase):
         emulator.erase_input()
 
         # Assert
-        fields = emulator.get_fields()
+        fields = emulator.get_fields(protected=False)
 
         self.assertFalse(fields[0][2].modified)
         self.assertEqual(emulator.get_bytes(fields[0][0], fields[0][1]), bytes.fromhex('00000000000000000000'))
@@ -1267,3 +1267,48 @@ class IsFormattedTestCase(unittest.TestCase):
 
         # Act and assert
         self.assertFalse(self.emulator.is_formatted())
+
+class GetFieldsTestCase(unittest.TestCase):
+    def setUp(self):
+        self.stream = create_autospec(Telnet, instance=True)
+
+        self.emulator = Emulator(self.stream, 24, 80)
+
+        self.stream.read_multiple = Mock(return_value=[(SCREEN1, None)])
+
+        self.emulator.update()
+
+    def test_all(self):
+        # Act
+        fields = self.emulator.get_fields()
+
+        # Assert
+        self.assertEqual(len(fields), 30)
+
+    def test_protected(self):
+        # Act
+        fields = self.emulator.get_fields(protected=True)
+
+        # Assert
+        self.assertEqual(len(fields), 17)
+
+    def test_unprotected(self):
+        # Act
+        fields = self.emulator.get_fields(protected=False)
+
+        # Assert
+        self.assertEqual(len(fields), 13)
+
+    def test_modified(self):
+        # Act
+        fields = self.emulator.get_fields(modified=True)
+
+        # Assert
+        self.assertEqual(len(fields), 3)
+
+    def test_unmodified(self):
+        # Act
+        fields = self.emulator.get_fields(modified=False)
+
+        # Assert
+        self.assertEqual(len(fields), 27)

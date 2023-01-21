@@ -270,7 +270,7 @@ class Emulator:
         if isinstance(self.cells[self.cursor_address], AttributeCell):
             raise ProtectedCellOperatorError
 
-        (start_address, end_address, attribute) = self.get_field(self.cursor_address)
+        (start_address, end_address, attribute) = self.get_unprotected_field(self.cursor_address)
 
         if self.cursor_address == start_address:
             return
@@ -290,7 +290,7 @@ class Emulator:
         if isinstance(self.cells[self.cursor_address], AttributeCell):
             raise ProtectedCellOperatorError
 
-        (_, end_address, attribute) = self.get_field(self.cursor_address)
+        (_, end_address, attribute) = self.get_unprotected_field(self.cursor_address)
 
         self._shift_left(self.cursor_address, end_address)
 
@@ -303,7 +303,7 @@ class Emulator:
             if isinstance(self.cells[self.cursor_address], AttributeCell):
                 raise ProtectedCellOperatorError
 
-            (_, end_address, attribute) = self.get_field(self.cursor_address)
+            (_, end_address, attribute) = self.get_unprotected_field(self.cursor_address)
 
             for address in self._get_addresses(self.cursor_address, end_address):
                 self._write_character(address, 0x00, preserve=True)
@@ -316,7 +316,7 @@ class Emulator:
     def erase_input(self):
         """Erase input key."""
         if self.is_formatted():
-            for (start_address, end_address, attribute) in self.get_fields():
+            for (start_address, end_address, attribute) in self.get_fields(protected=False):
                 for address in self._get_addresses(start_address, end_address):
                     self._write_character(address, 0x00, preserve=True)
 
@@ -337,11 +337,8 @@ class Emulator:
         return any([isinstance(cell, AttributeCell) for cell in self.cells])
 
     def get_field(self, address):
-        """Get the unprotected field containing or starting at the address."""
+        """Get the field containing or starting at the address."""
         (attribute, start_attribute_address) = self.find_attribute(address)
-
-        if attribute is None or attribute.protected:
-            raise ProtectedCellOperatorError
 
         start_address = self._wrap_address(start_attribute_address + 1)
 
@@ -357,14 +354,33 @@ class Emulator:
 
         return (start_address, end_address, attribute)
 
-    def get_fields(self):
-        """Get all unprotected fields."""
+    def get_unprotected_field(self, address):
+        """Get the unprotected field containing or starting at the address."""
+        field = self.get_field(address)
+
+        attribute = field[2]
+
+        if attribute is None or attribute.protected:
+            raise ProtectedCellOperatorError
+
+        return field
+
+    def get_fields(self, protected=None, modified=None):
+        """Get fields."""
         fields = []
 
         for address in range(0, self.rows * self.columns):
             cell = self.cells[address]
 
-            if isinstance(cell, AttributeCell) and not cell.attribute.protected:
+            if isinstance(cell, AttributeCell):
+                attribute = cell.attribute
+
+                if protected is not None and attribute.protected != protected:
+                    continue
+
+                if modified is not None and attribute.modified != modified:
+                    continue
+
                 field = self.get_field(address)
 
                 fields.append(field)
@@ -428,7 +444,7 @@ class Emulator:
         self.logger.debug('Erase All Unprotected')
 
         if self.is_formatted():
-            for (start_address, end_address, attribute) in self.get_fields():
+            for (start_address, end_address, attribute) in self.get_fields(protected=False):
                 for address in self._get_addresses(start_address, end_address):
                     self._write_character(address, 0x00, preserve=True)
 
@@ -575,7 +591,7 @@ class Emulator:
 
     def _read_modified(self, all_=False):
         if self.is_formatted():
-            modified_field_ranges = [(start_address, end_address) for (start_address, end_address, attribute) in self.get_fields() if attribute.modified]
+            modified_field_ranges = [(start_address, end_address) for (start_address, end_address, attribute) in self.get_fields(modified=True)]
         else:
             modified_field_ranges = [(0, (self.rows * self.columns) - 1)]
 
@@ -606,7 +622,7 @@ class Emulator:
             if isinstance(self.cells[self.cursor_address], AttributeCell):
                 raise ProtectedCellOperatorError
 
-            (_, end_address, attribute) = self.get_field(self.cursor_address)
+            (_, end_address, attribute) = self.get_unprotected_field(self.cursor_address)
 
             # TODO: Implement numeric field validation.
 
@@ -671,7 +687,7 @@ class Emulator:
     def _get_unprotected_addresses(self):
         addresses = set()
 
-        for (start_address, end_address, _) in self.get_fields():
+        for (start_address, end_address, _) in self.get_fields(protected=False):
             addresses.update(self._get_addresses(start_address, end_address))
 
         return addresses
