@@ -10,7 +10,7 @@ import time
 import logging
 import socket
 import selectors
-from telnetlib import IAC, WILL, WONT, DO, DONT, SB, SE, BINARY, EOR, TTYPE, TN3270E
+from telnetlib3 import IAC, WILL, WONT, DO, DONT, SB, SE, BINARY, EOR, TTYPE, TN3270E
 
 # https://tools.ietf.org/html/rfc855
 RFC855_EOR = b'\xef'

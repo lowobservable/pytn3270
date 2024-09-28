@@ -21,7 +21,7 @@ setup(
     author='Andrew Kay',
     author_email='projects@ajk.me',
     packages=['tn3270'],
-    install_requires=[],
+    install_requires=['telnetlib3'],
     long_description=LONG_DESCRIPTION,
     long_description_content_type='text/markdown',
     classifiers=[
