@@ -181,6 +181,10 @@ class Emulator:
 
     def tab(self, direction=1):
         """Tab or backtab key."""
+        if self.is_unformatted():
+            self.cursor_address = 0
+            return
+
         address = self._calculate_tab_address(self.cursor_address, direction)
 
         if address is not None:
@@ -188,6 +192,10 @@ class Emulator:
 
     def newline(self):
         """Move to the next line or the subsequent unprotected field."""
+        if self.is_unformatted():
+            self.cursor_address = 0
+            return
+
         current_row = self.cursor_address // self.columns
 
         address = self._wrap_address((current_row + 1) * self.columns)
@@ -205,7 +213,7 @@ class Emulator:
 
     def home(self):
         """Home key."""
-        if not self.is_formatted():
+        if self.is_unformatted():
             self.cursor_address = 0
             return
 
@@ -284,7 +292,7 @@ class Emulator:
 
     def delete(self):
         """Delete key."""
-        if not self.is_formatted():
+        if self.is_unformatted():
             return
 
         if isinstance(self.cells[self.cursor_address], AttributeCell):
@@ -299,32 +307,34 @@ class Emulator:
 
     def erase_end_of_field(self):
         """Erase end of field (EOF) key."""
-        if self.is_formatted():
-            if isinstance(self.cells[self.cursor_address], AttributeCell):
-                raise ProtectedCellOperatorError
-
-            (_, end_address, attribute) = self.get_unprotected_field(self.cursor_address)
-
-            for address in self._get_addresses(self.cursor_address, end_address):
-                self._write_character(address, 0x00, preserve=True)
-
-            attribute.modified = True
-        else:
+        if self.is_unformatted():
             for address in self._get_addresses(self.cursor_address, (self.rows * self.columns) - 1):
                 self._write_character(address, 0x00, preserve=True)
+            return
+
+        if isinstance(self.cells[self.cursor_address], AttributeCell):
+            raise ProtectedCellOperatorError
+
+        (_, end_address, attribute) = self.get_unprotected_field(self.cursor_address)
+
+        for address in self._get_addresses(self.cursor_address, end_address):
+            self._write_character(address, 0x00, preserve=True)
+
+        attribute.modified = True
 
     def erase_input(self):
         """Erase input key."""
-        if self.is_formatted():
-            for (start_address, end_address, attribute) in self.get_fields(protected=False):
-                for address in self._get_addresses(start_address, end_address):
-                    self._write_character(address, 0x00, preserve=True)
-
-                attribute.modified = False
-
-            self.cursor_address = self._calculate_tab_address(0, 1) or 0
-        else:
+        if self.is_unformatted():
             self._clear()
+            return
+
+        for (start_address, end_address, attribute) in self.get_fields(protected=False):
+            for address in self._get_addresses(start_address, end_address):
+                self._write_character(address, 0x00, preserve=True)
+
+            attribute.modified = False
+
+        self.cursor_address = self._calculate_tab_address(0, 1) or 0
 
     def get_bytes(self, start_address, end_address):
         """Get character cell bytes."""
@@ -335,6 +345,10 @@ class Emulator:
     def is_formatted(self):
         """Is there at least one attribute?"""
         return any([isinstance(cell, AttributeCell) for cell in self.cells])
+
+    def is_unformatted(self):
+        """No attributes?"""
+        return not self.is_formatted()
 
     def get_field(self, address):
         """Get the field containing or starting at the address."""
